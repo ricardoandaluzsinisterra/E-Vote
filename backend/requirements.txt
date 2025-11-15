@@ -1,8 +1,8 @@
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
 pydantic==2.5.0
-psycopg==latest
-twilio==latest
-python-multipart==latest
-PyJWT==latest
-argon2-cffi==latest
+psycopg==3.2.12
+twilio==6.63.2
+python-multipart==0.0.20
+PyJWT==1.7.1
+argon2-cffi==21.3.0
