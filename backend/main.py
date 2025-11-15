@@ -4,12 +4,12 @@ import logging
 import psycopg
 import os
 
-from backend.database.connection import DatabaseManager, get_database
-from backend.database.operations import get_user_by_email_as_user, create_user
-from backend.auth.password_utils import *
-from backend.auth.jwt_handler import generate_tokens
-from backend.models.User import User
-from backend.models.auth_models import *
+from database.connection import DatabaseManager, get_database
+from database.operations import get_user_by_email_as_user, create_user
+from auth.password_utils import *
+from auth.jwt_handler import generate_tokens
+from models.User import User
+from models.auth_models import *
 
 # Logger
 logger = logging.getLogger(__name__)
