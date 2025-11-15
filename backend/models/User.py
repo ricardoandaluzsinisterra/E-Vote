@@ -1,6 +1,6 @@
 from typing import Optional, Dict, Any
 from datetime import datetime
-from backend.models.auth_models import UserRegistrationRequest
+from models.auth_models import UserRegistrationRequest
 
 
 class User:
