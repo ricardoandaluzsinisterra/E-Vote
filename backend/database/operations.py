@@ -4,7 +4,7 @@ import psycopg
 import logging
 from typing import Optional
 from models.User import User
-from backend.database.connection import DatabaseManager
+from database.connection import DatabaseManager
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(filename='myapp.log', level=logging.INFO)
