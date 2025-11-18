@@ -86,14 +86,16 @@ class DatabaseManager:
         
     def initialize_tables(self):
         """
-        Create the users table if it doesn't exist.
-        
+        Create the database tables if they don't exist.
+        Creates users, polls, poll_options, and votes tables with proper constraints.
+
         Raises:
             RuntimeError: If cursor is not available (connect() not called)
         """
         if self.cursor is None:
             raise RuntimeError("Database cursor not available. Ensure connect() is called first.")
-        
+
+        # Create users table
         self.cursor.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
@@ -103,6 +105,56 @@ class DatabaseManager:
                 verification_token VARCHAR(255),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
+        """)
+
+        # Create polls table
+        self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS polls (
+                id SERIAL PRIMARY KEY,
+                title VARCHAR(500) NOT NULL,
+                description TEXT,
+                created_by INTEGER NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                ends_at TIMESTAMP,
+                is_active BOOLEAN DEFAULT TRUE,
+                CONSTRAINT fk_polls_created_by FOREIGN KEY (created_by)
+                    REFERENCES users(id) ON DELETE CASCADE
+            );
+        """)
+
+        # Create poll_options table
+        self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS poll_options (
+                id SERIAL PRIMARY KEY,
+                poll_id INTEGER NOT NULL,
+                option_text VARCHAR(500) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT fk_poll_options_poll_id FOREIGN KEY (poll_id)
+                    REFERENCES polls(id) ON DELETE CASCADE
+            );
+        """)
+
+        # Create votes table with UUID, constraints, and indexes
+        self.cursor.execute("""
+            CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+            CREATE TABLE IF NOT EXISTS votes (
+                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                user_id INTEGER NOT NULL,
+                poll_id INTEGER NOT NULL,
+                option_id INTEGER NOT NULL,
+                voted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT fk_votes_user_id FOREIGN KEY (user_id)
+                    REFERENCES users(id) ON DELETE CASCADE,
+                CONSTRAINT fk_votes_poll_id FOREIGN KEY (poll_id)
+                    REFERENCES polls(id) ON DELETE CASCADE,
+                CONSTRAINT fk_votes_option_id FOREIGN KEY (option_id)
+                    REFERENCES poll_options(id) ON DELETE CASCADE,
+                CONSTRAINT unique_user_poll UNIQUE (user_id, poll_id)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_votes_user_id ON votes(user_id);
+            CREATE INDEX IF NOT EXISTS idx_votes_poll_id ON votes(poll_id);
         """)
 
 # FastAPI dependency for database access
