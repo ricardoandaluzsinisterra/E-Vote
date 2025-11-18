@@ -4,7 +4,7 @@ function Login() {
       <h1>Login Page</h1>
       <p>Welcome to E-Vote</p>
     </div>
-  )
+  );
 }
 
-export default Login
+export default Login;
