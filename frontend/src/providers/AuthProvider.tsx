@@ -6,9 +6,10 @@ import type {
   LoginResponse,
   RegisterResponse,
 } from "../types/auth.types";
+import { decodeJWT } from "../utils/jwt";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+    
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
@@ -29,35 +30,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = async (email: string, password: string) => {
-    try {
-      const response = await fetch("http://localhost:8000/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email, password }),
-      });
+    const response = await fetch("http://localhost:8000/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
 
-      if (!response.ok) {
-        throw new Error("Login failed");
-      }
-
-      const data: LoginResponse = await response.json();
-
-      // Store token
-      localStorage.setItem("auth_token", data.access_token);
-      setToken(data.access_token);
-
-      setUser({
-        user_id: 0,
-        email: email,
-        is_verified: true,
-        created_at: new Date().toISOString(),
-      });
-    } catch (error) {
-      console.error("Login error:", error);
-      throw error;
+    // Handle specific error cases
+    if (response.status === 403) {
+      const error = await response.json();
+      throw new Error(error.detail);
     }
+
+    if (!response.ok) {
+      throw new Error("Login failed");
+    }
+
+    const data: LoginResponse = await response.json();
+    const token = data.access_token;
+
+    // Decode and store token
+    const decoded = decodeJWT(token);
+
+    localStorage.setItem("auth_token", token);
+    setToken(token);
+    setUser({
+      user_id: decoded.user_id,
+      email: decoded.email,
+      is_verified: true,
+    });
   };
 
   const register = async (email: string, password: string) => {

@@ -22,9 +22,7 @@ export interface RegisterResponse {
 }
 
 export interface User {
-  user_id: number
-  email: string
-  is_verified: boolean
-  created_at: string
+  user_id: number;
+  email: string;
+  is_verified: boolean;
 }
-

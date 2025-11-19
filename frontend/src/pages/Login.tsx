@@ -1,4 +1,7 @@
+import { useAuth } from "../hooks/useAuth";
+
 function Login() {
+  const { login } = useAuth()
   return (
     <div>
       <h1>Login Page</h1>
