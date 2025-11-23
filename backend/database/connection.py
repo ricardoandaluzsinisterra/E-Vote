@@ -95,6 +95,11 @@ class DatabaseManager:
         if self.cursor is None:
             raise RuntimeError("Database cursor not available. Ensure connect() is called first.")
 
+        # Enable UUID extension
+        self.cursor.execute("""
+            CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+        """)
+
         # Create users table
         self.cursor.execute("""
             CREATE TABLE IF NOT EXISTS users (
@@ -110,40 +115,44 @@ class DatabaseManager:
         # Create polls table
         self.cursor.execute("""
             CREATE TABLE IF NOT EXISTS polls (
-                id SERIAL PRIMARY KEY,
+                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
                 title VARCHAR(500) NOT NULL,
                 description TEXT,
                 created_by INTEGER NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                ends_at TIMESTAMP,
+                expires_at TIMESTAMP,
                 is_active BOOLEAN DEFAULT TRUE,
                 CONSTRAINT fk_polls_created_by FOREIGN KEY (created_by)
-                    REFERENCES users(id) ON DELETE CASCADE
+                    REFERENCES users(id) ON DELETE CASCADE,
+                CONSTRAINT chk_expires_after_created CHECK (expires_at IS NULL OR expires_at > created_at)
             );
+
+            CREATE INDEX IF NOT EXISTS idx_polls_created_by ON polls(created_by);
+            CREATE INDEX IF NOT EXISTS idx_polls_is_active ON polls(is_active);
         """)
 
         # Create poll_options table
         self.cursor.execute("""
             CREATE TABLE IF NOT EXISTS poll_options (
-                id SERIAL PRIMARY KEY,
-                poll_id INTEGER NOT NULL,
+                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                poll_id UUID NOT NULL,
                 option_text VARCHAR(500) NOT NULL,
                 vote_count INTEGER DEFAULT 0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                display_order INTEGER DEFAULT 0,
                 CONSTRAINT fk_poll_options_poll_id FOREIGN KEY (poll_id)
                     REFERENCES polls(id) ON DELETE CASCADE
             );
+
+            CREATE INDEX IF NOT EXISTS idx_poll_options_poll_id ON poll_options(poll_id);
         """)
 
         # Create votes table with UUID, constraints, and indexes
         self.cursor.execute("""
-            CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
             CREATE TABLE IF NOT EXISTS votes (
                 id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
                 user_id INTEGER NOT NULL,
-                poll_id INTEGER NOT NULL,
-                option_id INTEGER NOT NULL,
+                poll_id UUID NOT NULL,
+                option_id UUID NOT NULL,
                 voted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 CONSTRAINT fk_votes_user_id FOREIGN KEY (user_id)
                     REFERENCES users(id) ON DELETE CASCADE,
