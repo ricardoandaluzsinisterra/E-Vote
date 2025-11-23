@@ -128,6 +128,7 @@ class DatabaseManager:
                 id SERIAL PRIMARY KEY,
                 poll_id INTEGER NOT NULL,
                 option_text VARCHAR(500) NOT NULL,
+                vote_count INTEGER DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 CONSTRAINT fk_poll_options_poll_id FOREIGN KEY (poll_id)
                     REFERENCES polls(id) ON DELETE CASCADE
