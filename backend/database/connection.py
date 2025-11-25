@@ -108,8 +108,30 @@ class DatabaseManager:
                 password_hash TEXT NOT NULL,
                 is_verified BOOLEAN DEFAULT FALSE,
                 verification_token VARCHAR(255),
+                reset_token VARCHAR(255),
+                reset_token_expires_at TIMESTAMP,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
+        """)
+
+        # Add reset token columns if they don't exist (migration for existing databases)
+        self.cursor.execute("""
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'users' AND column_name = 'reset_token'
+                ) THEN
+                    ALTER TABLE users ADD COLUMN reset_token VARCHAR(255);
+                END IF;
+
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'users' AND column_name = 'reset_token_expires_at'
+                ) THEN
+                    ALTER TABLE users ADD COLUMN reset_token_expires_at TIMESTAMP;
+                END IF;
+            END $$;
         """)
 
         # Create polls table

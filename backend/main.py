@@ -5,7 +5,7 @@ import psycopg
 import os
 
 from database.connection import DatabaseManager, get_database
-from database.operations import get_user_by_email_as_user, create_user, verify_user
+from database.operations import get_user_by_email_as_user, create_user, verify_user, store_password_reset_token
 from auth.password_utils import *
 from auth.jwt_handler import generate_tokens
 from models.User import User
@@ -153,6 +153,52 @@ async def verify_email(request: EmailVerificationRequest, db: DatabaseManager = 
     except Exception as e:
         # Catch any other unexpected errors
         logger.error(f"Email verification failed - unexpected error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred. Please try again later."
+        )
+
+@app.post("/reset-password-request")
+async def reset_password_request(request: PasswordResetRequest, db: DatabaseManager = Depends(get_database)) -> MessageResponse:
+    """
+    Generate and store a password reset token for a user.
+
+    Args:
+        request (PasswordResetRequest): Request containing the user's email address
+        db (DatabaseManager): Database manager dependency
+
+    Returns:
+        MessageResponse: Success message (always returns success for security)
+
+    Note:
+        For security reasons, this endpoint always returns a success message regardless
+        of whether the email exists in the database. This prevents email enumeration attacks.
+        In a production environment, this would also trigger an email with the reset link.
+    """
+    try:
+        # Generate and store reset token
+        reset_token = store_password_reset_token(db.get_cursor(), request.email)
+
+        # Log token generation (in production, this would send an email instead)
+        if reset_token:
+            logger.info(f"Password reset token generated for {request.email}: {reset_token[:10]}...")
+            # TODO: Send email with reset link containing the token
+        else:
+            logger.info(f"Password reset requested for non-existent email: {request.email}")
+
+        # Always return success message to prevent email enumeration
+        return MessageResponse(
+            message="If an account exists with that email, a password reset link has been sent."
+        )
+
+    except psycopg.DatabaseError as e:
+        logger.error(f"Password reset request failed - database error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while processing your request. Please try again later."
+        )
+    except Exception as e:
+        logger.error(f"Password reset request failed - unexpected error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An unexpected error occurred. Please try again later."

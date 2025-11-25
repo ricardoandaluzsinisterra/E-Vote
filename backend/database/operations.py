@@ -4,6 +4,7 @@ import psycopg
 import logging
 from typing import Optional, List
 from uuid import UUID
+from datetime import datetime, timedelta
 from models.User import User
 from models.Vote import Vote
 from database.connection import DatabaseManager
@@ -114,7 +115,56 @@ def verify_user(cursor, user: User) -> User:
     except psycopg.DatabaseError as e:
         logger.error(f"User verification failed - database error: {str(e)}")
         raise
-    
+
+def store_password_reset_token(cursor, email: str, expiration_hours: int = 1) -> Optional[str]:
+    """
+    Generate and store a password reset token for a user.
+
+    Args:
+        cursor: Database cursor for executing queries
+        email (str): Email address of the user requesting password reset
+        expiration_hours (int): Number of hours until token expires (default: 1)
+
+    Returns:
+        Optional[str]: Reset token if user exists, None if user not found
+
+    Raises:
+        psycopg.DataError: If data format is invalid
+        psycopg.OperationalError: If database connection issue
+        psycopg.DatabaseError: For general database errors
+
+    Note:
+        For security, this function returns None (not an error) if the user doesn't exist,
+        to prevent email enumeration attacks.
+    """
+    try:
+        # Generate secure reset token
+        reset_token = f"{uuid.uuid4()}-{int(time.time())}"
+        expires_at = datetime.now() + timedelta(hours=expiration_hours)
+
+        # Update user's reset token and expiration
+        query = """UPDATE users
+                   SET reset_token = %s, reset_token_expires_at = %s
+                   WHERE email = %s"""
+        cursor.execute(query, (reset_token, expires_at, email))
+
+        if cursor.rowcount == 0:
+            logger.info(f"Password reset requested for non-existent email: {email}")
+            return None
+
+        logger.info(f"Password reset token generated for email: {email}")
+        return reset_token
+
+    except psycopg.DataError as e:
+        logger.error(f"Store reset token failed - invalid data format: {str(e)}")
+        raise
+    except psycopg.OperationalError as e:
+        logger.error(f"Store reset token failed - database connection issue: {str(e)}")
+        raise
+    except psycopg.DatabaseError as e:
+        logger.error(f"Store reset token failed - database error: {str(e)}")
+        raise
+
 def update_user_password(cursor, user: User, new_password_hash: str) -> User:
     """
     Update user's password hash for rehashing purposes.
@@ -157,34 +207,28 @@ def update_user_password(cursor, user: User, new_password_hash: str) -> User:
 def get_user_by_id(cursor, user_id: int) -> Optional[User]:
     """
     Retrieve a user from database by their ID and return as User object.
-    
+
     Args:
         cursor: Database cursor for executing queries
         user_id (int): ID of the user to retrieve
-        
+
     Returns:
         Optional[User]: User object if found, None if not found
-        
+
     Raises:
         psycopg.DataError: If data format is invalid
         psycopg.OperationalError: If database connection issue
         psycopg.DatabaseError: For general database errors
     """
     try:
-        query = """SELECT id, email, password_hash, is_verified, verification_token, created_at 
+        query = """SELECT id, email, password_hash, is_verified, verification_token,
+                reset_token, reset_token_expires_at, created_at
                 FROM users WHERE id=%s"""
         cursor.execute(query, (user_id,))
         row = cursor.fetchone()
         if not row:
             return None
-        return User(
-            user_id=row[0],
-            email=row[1],
-            password_hash=row[2],
-            is_verified=row[3],
-            verification_token=row[4],
-            created_at=row[5]
-        )
+        return User.from_db_row(row)
     except psycopg.DataError as e:
         logger.error(f"Get user by ID failed - invalid data format: {str(e)}")
         raise
@@ -198,34 +242,28 @@ def get_user_by_id(cursor, user_id: int) -> Optional[User]:
 def get_user_by_email_as_user(cursor, email: str) -> Optional[User]:
     """
     Retrieve a user from database by their email and return as User object.
-    
+
     Args:
         cursor: Database cursor for executing queries
         email (str): Email address of the user to retrieve
-        
+
     Returns:
         Optional[User]: User object if found, None if not found
-        
+
     Raises:
         psycopg.DataError: If email format is invalid
         psycopg.OperationalError: If database connection issue
         psycopg.DatabaseError: For general database errors
     """
     try:
-        query = """SELECT id, email, password_hash, is_verified, verification_token, created_at 
+        query = """SELECT id, email, password_hash, is_verified, verification_token,
+                reset_token, reset_token_expires_at, created_at
                 FROM users WHERE email=%s"""
         cursor.execute(query, (email,))
         row = cursor.fetchone()
         if not row:
             return None
-        return User(
-            user_id=row[0],
-            email=row[1],
-            password_hash=row[2],
-            is_verified=row[3],
-            verification_token=row[4],
-            created_at=row[5]
-        )
+        return User.from_db_row(row)
     except psycopg.DataError as e:
         logger.error(f"Get user by email failed - invalid email format: {str(e)}")
         raise
