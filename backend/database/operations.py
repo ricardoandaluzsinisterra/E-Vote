@@ -274,16 +274,16 @@ def get_user_by_email_as_user(cursor, email: str) -> Optional[User]:
         logger.error(f"Get user by email failed - database error: {str(e)}")
         raise
 
-def create_vote(connection, user_id: int, poll_id: int, option_id: int) -> Vote:
+def create_vote(connection, user_id: str, poll_id: str, option_id: str) -> Vote:
     """
     Create a new vote with duplicate check and atomic vote_count increment.
     Uses a transaction to ensure vote and vote_count are updated atomically.
 
     Args:
         connection: Database connection for transaction handling
-        user_id (int): ID of the user casting the vote
-        poll_id (int): ID of the poll being voted on
-        option_id (int): ID of the selected poll option
+        user_id (str): ID of the user casting the vote
+        poll_id (str): ID of the poll being voted on
+        option_id (str): ID of the selected poll option
 
     Returns:
         Vote: Created Vote object with database-generated ID and timestamp
@@ -396,14 +396,14 @@ def create_vote(connection, user_id: int, poll_id: int, option_id: int) -> Vote:
         raise
 
 
-def get_user_vote(cursor, user_id: int, poll_id: int) -> Optional[Vote]:
+def get_user_vote(cursor, user_id: str, poll_id: str) -> Optional[Vote]:
     """
     Retrieve a user's vote for a specific poll.
 
     Args:
         cursor: Database cursor for executing queries
-        user_id (int): ID of the user
-        poll_id (int): ID of the poll
+        user_id (str): ID of the user
+        poll_id (str): ID of the poll
 
     Returns:
         Optional[Vote]: Vote object if user has voted, None otherwise
@@ -438,13 +438,13 @@ def get_user_vote(cursor, user_id: int, poll_id: int) -> Optional[Vote]:
         raise
 
 
-def get_votes_by_poll(cursor, poll_id: int) -> List[Vote]:
+def get_votes_by_poll(cursor, poll_id: str) -> List[Vote]:
     """
     Retrieve all votes for a specific poll.
 
     Args:
         cursor: Database cursor for executing queries
-        poll_id (int): ID of the poll
+        poll_id (str): ID of the poll
 
     Returns:
         List[Vote]: List of Vote objects for the poll
@@ -477,17 +477,17 @@ def get_votes_by_poll(cursor, poll_id: int) -> List[Vote]:
         raise
 
 
-def get_vote_counts_by_poll(cursor, poll_id: int) -> dict:
+def get_vote_counts_by_poll(cursor, poll_id: str) -> dict:
     """
     Get aggregated vote counts for each option in a poll.
 
     Args:
         cursor: Database cursor for executing queries
-        poll_id (int): ID of the poll
+        poll_id (str): ID of the poll
 
     Returns:
         dict: Dictionary mapping option_id to vote count
-              Example: {1: 10, 2: 5, 3: 15}
+              Example: {'opt1': 10, 'opt2': 5, 'opt3': 15}
 
     Raises:
         psycopg.DataError: If data format is invalid
@@ -517,14 +517,14 @@ def get_vote_counts_by_poll(cursor, poll_id: int) -> dict:
         raise
 
 
-def increment_vote_count(cursor, option_id: int) -> int:
+def increment_vote_count(cursor, option_id: str) -> int:
     """
     Atomically increment the vote count for a poll option.
     Uses SELECT FOR UPDATE to prevent race conditions.
 
     Args:
         cursor: Database cursor for executing queries
-        option_id (int): ID of the poll option to increment
+        option_id (str): ID of the poll option to increment
 
     Returns:
         int: The new vote count after increment
@@ -566,14 +566,14 @@ def increment_vote_count(cursor, option_id: int) -> int:
         raise
 
 
-def decrement_vote_count(cursor, option_id: int) -> int:
+def decrement_vote_count(cursor, option_id: str) -> int:
     """
     Atomically decrement the vote count for a poll option.
     Ensures vote count does not go below zero.
 
     Args:
         cursor: Database cursor for executing queries
-        option_id (int): ID of the poll option to decrement
+        option_id (str): ID of the poll option to decrement
 
     Returns:
         int: The new vote count after decrement
@@ -609,16 +609,16 @@ def decrement_vote_count(cursor, option_id: int) -> int:
         raise
 
 
-def create_vote_with_count(connection, user_id: int, poll_id: int, option_id: int) -> Vote:
+def create_vote_with_count(connection, user_id: str, poll_id: str, option_id: str) -> Vote:
     """
     Create a vote and increment the option's vote count in a single transaction.
     Ensures atomicity between vote creation and count update.
 
     Args:
         connection: Database connection for transaction handling
-        user_id (int): ID of the user casting the vote
-        poll_id (int): ID of the poll being voted on
-        option_id (int): ID of the selected poll option
+        user_id (str): ID of the user casting the vote
+        poll_id (str): ID of the poll being voted on
+        option_id (str): ID of the selected poll option
 
     Returns:
         Vote: Created Vote object with database-generated ID and timestamp

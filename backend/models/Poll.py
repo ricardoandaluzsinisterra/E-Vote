@@ -66,8 +66,8 @@ class PollCreate(BaseModel):
 
 class PollOption(BaseModel):
     """Pydantic model representing a poll option with vote count."""
-    id: int
-    poll_id: int
+    id: str
+    poll_id: str
     option_text: str
     vote_count: int = 0
 
@@ -114,10 +114,10 @@ class Poll:
 
     def __init__(
         self,
-        poll_id: int = 0,
+        poll_id: str = "",
         title: str = "",
         description: Optional[str] = None,
-        created_by: int = 0,
+        created_by: str = "",
         created_at: Optional[datetime] = None,
         expires_at: Optional[datetime] = None,
         is_active: bool = True
@@ -148,7 +148,7 @@ class Poll:
         return hash((self.poll_id, self.title))
 
     def __bool__(self) -> bool:
-        return self.poll_id > 0 and bool(self.title)
+        return bool(self.poll_id) and bool(self.title)
 
     def to_api_dict(self) -> Dict[str, Any]:
         """
@@ -191,7 +191,7 @@ class Poll:
         Returns:
             bool: True if poll has valid poll_id, title, and created_by
         """
-        return self.poll_id > 0 and bool(self.title) and self.created_by > 0
+        return bool(self.poll_id) and bool(self.title) and bool(self.created_by)
 
     def is_expired(self) -> bool:
         """
@@ -237,7 +237,7 @@ class Poll:
             ValueError: If required fields are missing or invalid
         """
         # Handle both 'id' and 'poll_id' field names
-        poll_id = poll_data.get('poll_id', poll_data.get('id', 0))
+        poll_id = poll_data.get('poll_id', poll_data.get('id', ''))
 
         # Handle datetime conversion
         created_at = poll_data.get('created_at')
@@ -252,7 +252,7 @@ class Poll:
             poll_id=poll_id,
             title=poll_data.get('title', ''),
             description=poll_data.get('description'),
-            created_by=poll_data.get('created_by', 0),
+            created_by=poll_data.get('created_by', ''),
             created_at=created_at,
             expires_at=expires_at,
             is_active=poll_data.get('is_active', True)

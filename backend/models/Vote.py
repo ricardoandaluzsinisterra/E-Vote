@@ -12,9 +12,9 @@ class Vote:
     def __init__(
         self,
         vote_id: Optional[UUID] = None,
-        user_id: int = 0,
-        poll_id: int = 0,
-        option_id: int = 0,
+        user_id: str = "",
+        poll_id: str = "",
+        option_id: str = "",
         voted_at: Optional[datetime] = None
     ) -> None:
         self.vote_id = vote_id
@@ -42,7 +42,7 @@ class Vote:
         return hash((self.vote_id, self.user_id, self.poll_id))
 
     def __bool__(self) -> bool:
-        return self.vote_id is not None and self.user_id > 0 and self.poll_id > 0
+        return self.vote_id is not None and bool(self.user_id) and bool(self.poll_id)
 
     def to_api_dict(self) -> Dict[str, Any]:
         """
@@ -81,16 +81,16 @@ class Vote:
         Returns:
             bool: True if vote has valid user_id, poll_id, and option_id
         """
-        return self.user_id > 0 and self.poll_id > 0 and self.option_id > 0
+        return bool(self.user_id) and bool(self.poll_id) and bool(self.option_id)
 
-    def matches_user_and_poll(self, user_id: int, poll_id: int) -> bool:
+    def matches_user_and_poll(self, user_id: str, poll_id: str) -> bool:
         """
         Check if this vote matches a specific user and poll combination.
         Useful for duplicate vote validation.
 
         Args:
-            user_id (int): User ID to check
-            poll_id (int): Poll ID to check
+            user_id (str): User ID to check
+            poll_id (str): Poll ID to check
 
         Returns:
             bool: True if vote matches the user and poll
@@ -125,9 +125,9 @@ class Vote:
 
         return cls(
             vote_id=vote_id,
-            user_id=vote_data.get('user_id', 0),
-            poll_id=vote_data.get('poll_id', 0),
-            option_id=vote_data.get('option_id', 0),
+            user_id=vote_data.get('user_id', ''),
+            poll_id=vote_data.get('poll_id', ''),
+            option_id=vote_data.get('option_id', ''),
             voted_at=voted_at
         )
 
