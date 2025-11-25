@@ -126,7 +126,7 @@ async def login_user(user_data: UserLoginRequest, db: DatabaseManager = Depends(
             detail="Invalid email or password"
         )
     
-    if not verify_password(user_data.password, user.password_hash):
+    if not verify_password(user.password_hash, user_data.password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password"
