@@ -4,7 +4,7 @@ import psycopg
 import logging
 from typing import Optional, List
 from uuid import UUID
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from models.User import User
 from models.Vote import Vote
 from database.connection import DatabaseManager
