@@ -2,9 +2,32 @@ import uuid
 import time
 import psycopg
 import logging
-from typing import Optional
+from typing import Optional, List
+from uuid import UUID
+from datetime import datetime, timedelta, timezone
 from models.User import User
+from models.Vote import Vote
 from database.connection import DatabaseManager
+
+
+class VoteError(Exception):
+    """Custom exception for vote-related errors."""
+    pass
+
+
+class DuplicateVoteError(VoteError):
+    """Raised when a user attempts to vote twice on the same poll."""
+    pass
+
+
+class InvalidOptionError(VoteError):
+    """Raised when the selected option doesn't belong to the poll."""
+    pass
+
+
+class PollNotActiveError(VoteError):
+    """Raised when attempting to vote on an inactive or expired poll."""
+    pass
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(filename='myapp.log', level=logging.INFO)
@@ -92,7 +115,56 @@ def verify_user(cursor, user: User) -> User:
     except psycopg.DatabaseError as e:
         logger.error(f"User verification failed - database error: {str(e)}")
         raise
-    
+
+def store_password_reset_token(cursor, email: str, expiration_hours: int = 1) -> Optional[str]:
+    """
+    Generate and store a password reset token for a user.
+
+    Args:
+        cursor: Database cursor for executing queries
+        email (str): Email address of the user requesting password reset
+        expiration_hours (int): Number of hours until token expires (default: 1)
+
+    Returns:
+        Optional[str]: Reset token if user exists, None if user not found
+
+    Raises:
+        psycopg.DataError: If data format is invalid
+        psycopg.OperationalError: If database connection issue
+        psycopg.DatabaseError: For general database errors
+
+    Note:
+        For security, this function returns None (not an error) if the user doesn't exist,
+        to prevent email enumeration attacks.
+    """
+    try:
+        # Generate secure reset token
+        reset_token = f"{uuid.uuid4()}-{int(time.time())}"
+        expires_at = datetime.now(timezone.utc) + timedelta(hours=expiration_hours)
+
+        # Update user's reset token and expiration
+        query = """UPDATE users
+                   SET reset_token = %s, reset_token_expires_at = %s
+                   WHERE email = %s"""
+        cursor.execute(query, (reset_token, expires_at, email))
+
+        if cursor.rowcount == 0:
+            logger.info(f"Password reset requested for non-existent email: {email}")
+            return None
+
+        logger.info(f"Password reset token generated for email: {email}")
+        return reset_token
+
+    except psycopg.DataError as e:
+        logger.error(f"Store reset token failed - invalid data format: {str(e)}")
+        raise
+    except psycopg.OperationalError as e:
+        logger.error(f"Store reset token failed - database connection issue: {str(e)}")
+        raise
+    except psycopg.DatabaseError as e:
+        logger.error(f"Store reset token failed - database error: {str(e)}")
+        raise
+
 def update_user_password(cursor, user: User, new_password_hash: str) -> User:
     """
     Update user's password hash for rehashing purposes.
@@ -135,34 +207,28 @@ def update_user_password(cursor, user: User, new_password_hash: str) -> User:
 def get_user_by_id(cursor, user_id: int) -> Optional[User]:
     """
     Retrieve a user from database by their ID and return as User object.
-    
+
     Args:
         cursor: Database cursor for executing queries
         user_id (int): ID of the user to retrieve
-        
+
     Returns:
         Optional[User]: User object if found, None if not found
-        
+
     Raises:
         psycopg.DataError: If data format is invalid
         psycopg.OperationalError: If database connection issue
         psycopg.DatabaseError: For general database errors
     """
     try:
-        query = """SELECT id, email, password_hash, is_verified, verification_token, created_at 
+        query = """SELECT id, email, password_hash, is_verified, verification_token,
+                reset_token, reset_token_expires_at, created_at
                 FROM users WHERE id=%s"""
         cursor.execute(query, (user_id,))
         row = cursor.fetchone()
         if not row:
             return None
-        return User(
-            user_id=row[0],
-            email=row[1],
-            password_hash=row[2],
-            is_verified=row[3],
-            verification_token=row[4],
-            created_at=row[5]
-        )
+        return User.from_db_row(row)
     except psycopg.DataError as e:
         logger.error(f"Get user by ID failed - invalid data format: {str(e)}")
         raise
@@ -176,34 +242,28 @@ def get_user_by_id(cursor, user_id: int) -> Optional[User]:
 def get_user_by_email_as_user(cursor, email: str) -> Optional[User]:
     """
     Retrieve a user from database by their email and return as User object.
-    
+
     Args:
         cursor: Database cursor for executing queries
         email (str): Email address of the user to retrieve
-        
+
     Returns:
         Optional[User]: User object if found, None if not found
-        
+
     Raises:
         psycopg.DataError: If email format is invalid
         psycopg.OperationalError: If database connection issue
         psycopg.DatabaseError: For general database errors
     """
     try:
-        query = """SELECT id, email, password_hash, is_verified, verification_token, created_at 
+        query = """SELECT id, email, password_hash, is_verified, verification_token,
+                reset_token, reset_token_expires_at, created_at
                 FROM users WHERE email=%s"""
         cursor.execute(query, (email,))
         row = cursor.fetchone()
         if not row:
             return None
-        return User(
-            user_id=row[0],
-            email=row[1],
-            password_hash=row[2],
-            is_verified=row[3],
-            verification_token=row[4],
-            created_at=row[5]
-        )
+        return User.from_db_row(row)
     except psycopg.DataError as e:
         logger.error(f"Get user by email failed - invalid email format: {str(e)}")
         raise
@@ -212,4 +272,295 @@ def get_user_by_email_as_user(cursor, email: str) -> Optional[User]:
         raise
     except psycopg.DatabaseError as e:
         logger.error(f"Get user by email failed - database error: {str(e)}")
+        raise
+
+def get_user_vote(cursor, user_id: str, poll_id: str) -> Optional[Vote]:
+    """
+    Retrieve a user's vote for a specific poll.
+
+    Args:
+        cursor: Database cursor for executing queries
+        user_id (str): ID of the user
+        poll_id (str): ID of the poll
+
+    Returns:
+        Optional[Vote]: Vote object if user has voted, None otherwise
+
+    Raises:
+        psycopg.DataError: If data format is invalid
+        psycopg.OperationalError: If database connection issue
+        psycopg.DatabaseError: For general database errors
+    """
+    try:
+        query = """
+            SELECT id, user_id, poll_id, option_id, voted_at
+            FROM votes
+            WHERE user_id = %s AND poll_id = %s
+        """
+        cursor.execute(query, (user_id, poll_id))
+        row = cursor.fetchone()
+
+        if row is None:
+            return None
+
+        return Vote.from_db_row(row)
+
+    except psycopg.DataError as e:
+        logger.error(f"Get user vote failed - invalid data format: {str(e)}")
+        raise
+    except psycopg.OperationalError as e:
+        logger.error(f"Get user vote failed - database connection issue: {str(e)}")
+        raise
+    except psycopg.DatabaseError as e:
+        logger.error(f"Get user vote failed - database error: {str(e)}")
+        raise
+
+
+def get_votes_by_poll(cursor, poll_id: str) -> List[Vote]:
+    """
+    Retrieve all votes for a specific poll.
+
+    Args:
+        cursor: Database cursor for executing queries
+        poll_id (str): ID of the poll
+
+    Returns:
+        List[Vote]: List of Vote objects for the poll
+
+    Raises:
+        psycopg.DataError: If data format is invalid
+        psycopg.OperationalError: If database connection issue
+        psycopg.DatabaseError: For general database errors
+    """
+    try:
+        query = """
+            SELECT id, user_id, poll_id, option_id, voted_at
+            FROM votes
+            WHERE poll_id = %s
+            ORDER BY voted_at ASC
+        """
+        cursor.execute(query, (poll_id,))
+        rows = cursor.fetchall()
+
+        return [Vote.from_db_row(row) for row in rows]
+
+    except psycopg.DataError as e:
+        logger.error(f"Get votes by poll failed - invalid data format: {str(e)}")
+        raise
+    except psycopg.OperationalError as e:
+        logger.error(f"Get votes by poll failed - database connection issue: {str(e)}")
+        raise
+    except psycopg.DatabaseError as e:
+        logger.error(f"Get votes by poll failed - database error: {str(e)}")
+        raise
+
+
+def get_vote_counts_by_poll(cursor, poll_id: str) -> dict:
+    """
+    Get aggregated vote counts for each option in a poll.
+
+    Args:
+        cursor: Database cursor for executing queries
+        poll_id (str): ID of the poll
+
+    Returns:
+        dict: Dictionary mapping option_id to vote count
+              Example: {'opt1': 10, 'opt2': 5, 'opt3': 15}
+
+    Raises:
+        psycopg.DataError: If data format is invalid
+        psycopg.OperationalError: If database connection issue
+        psycopg.DatabaseError: For general database errors
+    """
+    try:
+        query = """
+            SELECT option_id, COUNT(*) as vote_count
+            FROM votes
+            WHERE poll_id = %s
+            GROUP BY option_id
+        """
+        cursor.execute(query, (poll_id,))
+        rows = cursor.fetchall()
+
+        return {row[0]: row[1] for row in rows}
+
+    except psycopg.DataError as e:
+        logger.error(f"Get vote counts failed - invalid data format: {str(e)}")
+        raise
+    except psycopg.OperationalError as e:
+        logger.error(f"Get vote counts failed - database connection issue: {str(e)}")
+        raise
+    except psycopg.DatabaseError as e:
+        logger.error(f"Get vote counts failed - database error: {str(e)}")
+        raise
+
+
+def create_vote(connection, user_id: str, poll_id: str, option_id: str) -> Vote:
+    """
+    Create a vote and increment the option's vote count in a single transaction.
+    Ensures atomicity between vote creation and count update.
+
+    Args:
+        connection: Database connection for transaction handling
+        user_id (str): ID of the user casting the vote
+        poll_id (str): ID of the poll being voted on
+        option_id (str): ID of the selected poll option
+
+    Returns:
+        Vote: Created Vote object with database-generated ID and timestamp
+
+    Raises:
+        DuplicateVoteError: If user has already voted on this poll
+        InvalidOptionError: If option doesn't belong to the specified poll
+        PollNotActiveError: If poll is not active or has expired
+        psycopg.IntegrityError: For other constraint violations
+        psycopg.DatabaseError: For general database errors
+    """
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("BEGIN")
+
+            try:
+                # Check if poll is active
+                cursor.execute("""
+                    SELECT is_active, expires_at
+                    FROM polls
+                    WHERE id = %s
+                    FOR UPDATE
+                """, (poll_id,))
+                poll_row = cursor.fetchone()
+
+                if poll_row is None:
+                    cursor.execute("ROLLBACK")
+                    raise InvalidOptionError(f"Poll with ID {poll_id} does not exist")
+
+                is_active, expires_at = poll_row
+                if not is_active:
+                    cursor.execute("ROLLBACK")
+                    raise PollNotActiveError(f"Poll {poll_id} is not active")
+
+                # Verify option belongs to the poll and lock row
+                cursor.execute("""
+                    SELECT id FROM poll_options
+                    WHERE id = %s AND poll_id = %s
+                    FOR UPDATE
+                """, (option_id, poll_id))
+
+                if cursor.fetchone() is None:
+                    cursor.execute("ROLLBACK")
+                    raise InvalidOptionError(
+                        f"Option {option_id} does not belong to poll {poll_id}"
+                    )
+
+                # Check for existing vote
+                cursor.execute("""
+                    SELECT id FROM votes
+                    WHERE user_id = %s AND poll_id = %s
+                """, (user_id, poll_id))
+
+                if cursor.fetchone() is not None:
+                    cursor.execute("ROLLBACK")
+                    raise DuplicateVoteError(
+                        f"User {user_id} has already voted on poll {poll_id}"
+                    )
+
+                # Insert the vote
+                cursor.execute("""
+                    INSERT INTO votes (user_id, poll_id, option_id)
+                    VALUES (%s, %s, %s)
+                    RETURNING id, voted_at
+                """, (user_id, poll_id, option_id))
+
+                result = cursor.fetchone()
+                vote_id = result[0]
+                voted_at = result[1]
+
+                # Increment vote count atomically
+                cursor.execute("""
+                    UPDATE poll_options
+                    SET vote_count = COALESCE(vote_count, 0) + 1
+                    WHERE id = %s
+                """, (option_id,))
+
+                cursor.execute("COMMIT")
+
+                logger.info(
+                    f"Vote created with count update: user={user_id}, "
+                    f"poll={poll_id}, option={option_id}"
+                )
+
+                return Vote(
+                    vote_id=vote_id,
+                    user_id=user_id,
+                    poll_id=poll_id,
+                    option_id=option_id,
+                    voted_at=voted_at
+                )
+
+            except (DuplicateVoteError, InvalidOptionError, PollNotActiveError):
+                raise
+            except Exception:
+                cursor.execute("ROLLBACK")
+                raise
+
+    except psycopg.IntegrityError as e:
+        error_msg = str(e)
+        if "unique_user_poll" in error_msg:
+            logger.warning(f"Duplicate vote attempt: user={user_id}, poll={poll_id}")
+            raise DuplicateVoteError(
+                f"User {user_id} has already voted on poll {poll_id}"
+            )
+        logger.error(f"Vote creation failed - integrity error: {error_msg}")
+        raise
+    except psycopg.DataError as e:
+        logger.error(f"Vote creation failed - invalid data format: {str(e)}")
+        raise
+    except psycopg.OperationalError as e:
+        logger.error(f"Vote creation failed - database connection issue: {str(e)}")
+        raise
+    except psycopg.DatabaseError as e:
+        logger.error(f"Vote creation failed - database error: {str(e)}")
+        raise
+
+
+def recalculate_poll_vote_counts(cursor, poll_id: str) -> dict:
+    """
+    Admin utility: Recalculate vote counts from votes table.
+    Use this to fix data inconsistencies or after data migration.
+
+    Args:
+        cursor: Database cursor for executing queries
+        poll_id (str): ID of the poll to recalculate
+
+    Returns:
+        dict: Dictionary mapping option_id to recalculated vote count
+
+    Raises:
+        psycopg.OperationalError: If database connection issue
+        psycopg.DatabaseError: For general database errors
+    """
+    try:
+        # Recalculate and update vote counts based on actual votes
+        cursor.execute("""
+            UPDATE poll_options po
+            SET vote_count = (
+                SELECT COUNT(*)
+                FROM votes v
+                WHERE v.option_id = po.id
+            )
+            WHERE po.poll_id = %s
+            RETURNING po.id, po.vote_count
+        """, (poll_id,))
+
+        rows = cursor.fetchall()
+        result = {row[0]: row[1] for row in rows}
+
+        logger.info(f"Recalculated vote counts for poll {poll_id}: {result}")
+        return result
+
+    except psycopg.OperationalError as e:
+        logger.error(f"Recalculate vote counts failed - database connection issue: {str(e)}")
+        raise
+    except psycopg.DatabaseError as e:
+        logger.error(f"Recalculate vote counts failed - database error: {str(e)}")
         raise

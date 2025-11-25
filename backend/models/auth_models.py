@@ -22,6 +22,9 @@ class TokenResponse(BaseModel):
 class EmailVerificationRequest(BaseModel):
     token: str
 
+class PasswordResetRequest(BaseModel):
+    email: EmailStr
+
 class MessageResponse(BaseModel):
     message: str
 

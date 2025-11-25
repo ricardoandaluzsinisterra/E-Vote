@@ -11,6 +11,8 @@ class User:
         password_hash: str,
         is_verified: bool = False,
         verification_token: Optional[str] = None,
+        reset_token: Optional[str] = None,
+        reset_token_expires_at: Optional[datetime] = None,
         created_at: Optional[datetime] = None
     ) -> None:
         self.user_id = user_id
@@ -18,6 +20,8 @@ class User:
         self.password_hash = password_hash
         self.is_verified = is_verified
         self.verification_token = verification_token
+        self.reset_token = reset_token
+        self.reset_token_expires_at = reset_token_expires_at
         self.created_at = created_at or datetime.now()
 
     def __str__(self) -> str:
@@ -27,6 +31,8 @@ class User:
         return (f"User(user_id={self.user_id}, email='{self.email}', "
                 f"password_hash='***', is_verified={self.is_verified}, "
                 f"verification_token='{self.verification_token}', "
+                f"reset_token='{self.reset_token}', "
+                f"reset_token_expires_at={self.reset_token_expires_at}, "
                 f"created_at={self.created_at})")
 
     def __eq__(self, other: object) -> bool:
@@ -57,12 +63,12 @@ class User:
     def to_full_dict(self) -> Dict[str, Any]:
         """
         Convert user to complete dictionary including all fields (for internal use).
-        
+
         Returns:
             Dict[str, Any]: Complete user data including sensitive fields
-            
+
         Warning:
-            Contains password_hash and verification_token - use only for internal operations
+            Contains password_hash, verification_token, and reset_token - use only for internal operations
         """
         return {
             "user_id": self.user_id,
@@ -70,6 +76,8 @@ class User:
             "password_hash": self.password_hash,
             "is_verified": self.is_verified,
             "verification_token": self.verification_token,
+            "reset_token": self.reset_token,
+            "reset_token_expires_at": self.reset_token_expires_at.isoformat() if self.reset_token_expires_at else None,
             "created_at": self.created_at.isoformat() if self.created_at else None
         }
 
@@ -122,13 +130,16 @@ class User:
                 raise ValueError(f"user_id must be an integer, got {type(user_id)}")
         
         created_at = user_data.get('created_at')
-        
+        reset_token_expires_at = user_data.get('reset_token_expires_at')
+
         return cls(
             user_id=user_id,
             email=user_data['email'],
             password_hash=user_data['password_hash'],
             is_verified=user_data.get('is_verified', False),
             verification_token=user_data.get('verification_token'),
+            reset_token=user_data.get('reset_token'),
+            reset_token_expires_at=reset_token_expires_at,
             created_at=created_at
         )
 
@@ -136,23 +147,27 @@ class User:
     def from_db_row(cls, row: tuple) -> 'User':
         """
         Create a User object from database row tuple.
-        
+
         Args:
-            row (tuple): Database row as tuple (id, email, password_hash, is_verified, verification_token, created_at)
-            
+            row (tuple): Database row as tuple (id, email, password_hash, is_verified, verification_token,
+                         reset_token, reset_token_expires_at, created_at)
+
         Returns:
             User: New User instance created from database row
-            
+
         Note:
-            Expects row fields in the order: id, email, password_hash, is_verified, verification_token, created_at
+            Expects row fields in the order: id, email, password_hash, is_verified, verification_token,
+            reset_token, reset_token_expires_at, created_at
         """
         return cls(
             user_id=row[0],
-            email=row[1], 
+            email=row[1],
             password_hash=row[2],
             is_verified=row[3],
             verification_token=row[4],
-            created_at=row[5]
+            reset_token=row[5],
+            reset_token_expires_at=row[6],
+            created_at=row[7]
         )
 
     @classmethod

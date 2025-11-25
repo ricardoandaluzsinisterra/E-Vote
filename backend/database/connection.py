@@ -86,14 +86,21 @@ class DatabaseManager:
         
     def initialize_tables(self):
         """
-        Create the users table if it doesn't exist.
-        
+        Create the database tables if they don't exist.
+        Creates users, polls, poll_options, and votes tables with proper constraints.
+
         Raises:
             RuntimeError: If cursor is not available (connect() not called)
         """
         if self.cursor is None:
             raise RuntimeError("Database cursor not available. Ensure connect() is called first.")
-        
+
+        # Enable UUID extension
+        self.cursor.execute("""
+            CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+        """)
+
+        # Create users table
         self.cursor.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
@@ -101,8 +108,85 @@ class DatabaseManager:
                 password_hash TEXT NOT NULL,
                 is_verified BOOLEAN DEFAULT FALSE,
                 verification_token VARCHAR(255),
+                reset_token VARCHAR(255),
+                reset_token_expires_at TIMESTAMP,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
+        """)
+
+        # Add reset token columns if they don't exist (migration for existing databases)
+        self.cursor.execute("""
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'users' AND column_name = 'reset_token'
+                ) THEN
+                    ALTER TABLE users ADD COLUMN reset_token VARCHAR(255);
+                END IF;
+
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'users' AND column_name = 'reset_token_expires_at'
+                ) THEN
+                    ALTER TABLE users ADD COLUMN reset_token_expires_at TIMESTAMP;
+                END IF;
+            END $$;
+        """)
+
+        # Create polls table
+        self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS polls (
+                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                title VARCHAR(500) NOT NULL,
+                description TEXT,
+                created_by INTEGER NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                expires_at TIMESTAMP,
+                is_active BOOLEAN DEFAULT TRUE,
+                CONSTRAINT fk_polls_created_by FOREIGN KEY (created_by)
+                    REFERENCES users(id) ON DELETE CASCADE,
+                CONSTRAINT chk_expires_after_created CHECK (expires_at IS NULL OR expires_at > created_at)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_polls_created_by ON polls(created_by);
+            CREATE INDEX IF NOT EXISTS idx_polls_is_active ON polls(is_active);
+        """)
+
+        # Create poll_options table
+        self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS poll_options (
+                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                poll_id UUID NOT NULL,
+                option_text VARCHAR(500) NOT NULL,
+                vote_count INTEGER DEFAULT 0,
+                display_order INTEGER DEFAULT 0,
+                CONSTRAINT fk_poll_options_poll_id FOREIGN KEY (poll_id)
+                    REFERENCES polls(id) ON DELETE CASCADE
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_poll_options_poll_id ON poll_options(poll_id);
+        """)
+
+        # Create votes table with UUID, constraints, and indexes
+        self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS votes (
+                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                user_id INTEGER NOT NULL,
+                poll_id UUID NOT NULL,
+                option_id UUID NOT NULL,
+                voted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT fk_votes_user_id FOREIGN KEY (user_id)
+                    REFERENCES users(id) ON DELETE CASCADE,
+                CONSTRAINT fk_votes_poll_id FOREIGN KEY (poll_id)
+                    REFERENCES polls(id) ON DELETE CASCADE,
+                CONSTRAINT fk_votes_option_id FOREIGN KEY (option_id)
+                    REFERENCES poll_options(id) ON DELETE CASCADE,
+                CONSTRAINT unique_user_poll UNIQUE (user_id, poll_id)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_votes_user_id ON votes(user_id);
+            CREATE INDEX IF NOT EXISTS idx_votes_poll_id ON votes(poll_id);
         """)
 
 # FastAPI dependency for database access
