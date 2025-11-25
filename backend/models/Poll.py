@@ -1,5 +1,5 @@
 from typing import Optional, Dict, Any, List
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 from pydantic import BaseModel, Field, field_validator
 
@@ -59,7 +59,7 @@ class PollCreate(BaseModel):
     @classmethod
     def validate_expires_at(cls, v: Optional[datetime]) -> Optional[datetime]:
         """Ensure expiration date is in the future if provided."""
-        if v is not None and v <= datetime.now():
+        if v is not None and v <= datetime.now(timezone.utc):
             raise ValueError("Expiration date must be in the future")
         return v
 
@@ -80,7 +80,7 @@ class PollResponse(BaseModel):
     id: str
     title: str
     description: Optional[str]
-    created_by: int
+    created_by: str
     created_at: str
     expires_at: Optional[str]
     is_active: bool
@@ -90,12 +90,12 @@ class PollResponse(BaseModel):
     class Config:
         from_attributes = True
 
-    def calculate_option_percentages(self) -> Dict[int, float]:
+    def calculate_option_percentages(self) -> Dict[str, float]:
         """
         Calculate vote percentage for each option.
 
         Returns:
-            Dict[int, float]: Mapping of option_id to percentage (0-100)
+            Dict[str, float]: Mapping of option_id to percentage (0-100)
         """
         if self.total_votes == 0:
             return {option.id: 0.0 for option in self.options}
@@ -126,7 +126,7 @@ class Poll:
         self.title = title
         self.description = description
         self.created_by = created_by
-        self.created_at = created_at or datetime.now()
+        self.created_at = created_at or datetime.now(timezone.utc)
         self.expires_at = expires_at
         self.is_active = is_active
 
@@ -202,7 +202,7 @@ class Poll:
         """
         if self.expires_at is None:
             return False
-        return datetime.now() > self.expires_at
+        return datetime.now(timezone.utc) > self.expires_at
 
     def can_vote(self) -> bool:
         """
@@ -285,13 +285,13 @@ class Poll:
         )
 
     @classmethod
-    def from_poll_create(cls, poll_create: PollCreate, created_by: int) -> 'Poll':
+    def from_poll_create(cls, poll_create: PollCreate, created_by: str) -> 'Poll':
         """
         Create a Poll object from PollCreate Pydantic model.
 
         Args:
             poll_create (PollCreate): Pydantic model containing poll creation data
-            created_by (int): ID of the user creating the poll
+            created_by (str): ID of the user creating the poll
 
         Returns:
             Poll: New Poll instance ready for database insertion
@@ -301,11 +301,11 @@ class Poll:
             Options are handled separately in database operations
         """
         return cls(
-            poll_id=0,  # Will be assigned by database
+            poll_id="",  # Will be assigned by database
             title=poll_create.title,
             description=poll_create.description,
             created_by=created_by,
-            created_at=datetime.now(),
+            created_at=datetime.now(timezone.utc),
             expires_at=poll_create.expires_at,
             is_active=True
         )
@@ -340,12 +340,12 @@ class PollWithOptions:
         """
         return sum(option.get('vote_count', 0) for option in self.options)
 
-    def get_option_percentages(self) -> Dict[int, float]:
+    def get_option_percentages(self) -> Dict[str, float]:
         """
         Calculate vote percentage for each option.
 
         Returns:
-            Dict[int, float]: Mapping of option_id to percentage (0-100)
+            Dict[str, float]: Mapping of option_id to percentage (0-100)
         """
         total_votes = self.get_total_votes()
         if total_votes == 0:
@@ -391,7 +391,7 @@ class PollWithOptions:
             title=self.poll.title,
             description=self.poll.description,
             created_by=self.poll.created_by,
-            created_at=self.poll.created_at.isoformat() if self.poll.created_at else datetime.now().isoformat(),
+            created_at=self.poll.created_at.isoformat() if self.poll.created_at else datetime.now(timezone.utc).isoformat(),
             expires_at=self.poll.expires_at.isoformat() if self.poll.expires_at else None,
             is_active=self.poll.is_active,
             options=poll_options,
