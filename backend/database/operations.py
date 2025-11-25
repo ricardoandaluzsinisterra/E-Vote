@@ -274,128 +274,6 @@ def get_user_by_email_as_user(cursor, email: str) -> Optional[User]:
         logger.error(f"Get user by email failed - database error: {str(e)}")
         raise
 
-def create_vote(connection, user_id: str, poll_id: str, option_id: str) -> Vote:
-    """
-    Create a new vote with duplicate check and atomic vote_count increment.
-    Uses a transaction to ensure vote and vote_count are updated atomically.
-
-    Args:
-        connection: Database connection for transaction handling
-        user_id (str): ID of the user casting the vote
-        poll_id (str): ID of the poll being voted on
-        option_id (str): ID of the selected poll option
-
-    Returns:
-        Vote: Created Vote object with database-generated ID and timestamp
-
-    Raises:
-        DuplicateVoteError: If user has already voted on this poll
-        InvalidOptionError: If option doesn't belong to the specified poll
-        PollNotActiveError: If poll is not active or has expired
-        psycopg.IntegrityError: For other constraint violations
-        psycopg.DatabaseError: For general database errors
-    """
-    try:
-        with connection.cursor() as cursor:
-            # Start transaction explicitly
-            cursor.execute("BEGIN")
-
-            try:
-                # Check if poll is active
-                cursor.execute("""
-                    SELECT is_active, expires_at
-                    FROM polls
-                    WHERE id = %s
-                """, (poll_id,))
-                poll_row = cursor.fetchone()
-
-                if poll_row is None:
-                    cursor.execute("ROLLBACK")
-                    raise InvalidOptionError(f"Poll with ID {poll_id} does not exist")
-
-                is_active, expires_at = poll_row
-                if not is_active:
-                    cursor.execute("ROLLBACK")
-                    raise PollNotActiveError(f"Poll {poll_id} is not active")
-
-                if expires_at is not None and expires_at < datetime.now(timezone.utc):
-                    cursor.execute("ROLLBACK")
-                    raise PollNotActiveError(f"Poll {poll_id} has expired")
-
-                # Verify option belongs to the poll
-                cursor.execute("""
-                    SELECT id FROM poll_options
-                    WHERE id = %s AND poll_id = %s
-                """, (option_id, poll_id))
-
-                if cursor.fetchone() is None:
-                    cursor.execute("ROLLBACK")
-                    raise InvalidOptionError(
-                        f"Option {option_id} does not belong to poll {poll_id}"
-                    )
-
-                # Check for existing vote (explicit duplicate check)
-                cursor.execute("""
-                    SELECT id FROM votes
-                    WHERE user_id = %s AND poll_id = %s
-                """, (user_id, poll_id))
-
-                if cursor.fetchone() is not None:
-                    cursor.execute("ROLLBACK")
-                    raise DuplicateVoteError(
-                        f"User {user_id} has already voted on poll {poll_id}"
-                    )
-
-                # Insert the vote
-                cursor.execute("""
-                    INSERT INTO votes (user_id, poll_id, option_id)
-                    VALUES (%s, %s, %s)
-                    RETURNING id, voted_at
-                """, (user_id, poll_id, option_id))
-
-                result = cursor.fetchone()
-                vote_id = result[0]
-                voted_at = result[1]
-
-                # Commit the transaction
-                cursor.execute("COMMIT")
-
-                logger.info(f"Vote created: user={user_id}, poll={poll_id}, option={option_id}")
-
-                return Vote(
-                    vote_id=vote_id,
-                    user_id=user_id,
-                    poll_id=poll_id,
-                    option_id=option_id,
-                    voted_at=voted_at
-                )
-
-            except (DuplicateVoteError, InvalidOptionError, PollNotActiveError):
-                raise
-            except Exception as e:
-                cursor.execute("ROLLBACK")
-                raise
-
-    except psycopg.IntegrityError as e:
-        error_msg = str(e)
-        if "unique_user_poll" in error_msg:
-            logger.warning(f"Duplicate vote attempt: user={user_id}, poll={poll_id}")
-            raise DuplicateVoteError(
-                f"User {user_id} has already voted on poll {poll_id}"
-            )
-        logger.error(f"Vote creation failed - integrity error: {error_msg}")
-        raise
-    except psycopg.DataError as e:
-        logger.error(f"Vote creation failed - invalid data format: {str(e)}")
-        raise
-    except psycopg.OperationalError as e:
-        logger.error(f"Vote creation failed - database connection issue: {str(e)}")
-        raise
-    except psycopg.DatabaseError as e:
-        logger.error(f"Vote creation failed - database error: {str(e)}")
-        raise
-
-
 def get_user_vote(cursor, user_id: str, poll_id: str) -> Optional[Vote]:
     """
     Retrieve a user's vote for a specific poll.
@@ -517,99 +395,7 @@ def get_vote_counts_by_poll(cursor, poll_id: str) -> dict:
         raise
 
 
-def increment_vote_count(cursor, option_id: str) -> int:
-    """
-    Atomically increment the vote count for a poll option.
-    Uses SELECT FOR UPDATE to prevent race conditions.
-
-    Args:
-        cursor: Database cursor for executing queries
-        option_id (str): ID of the poll option to increment
-
-    Returns:
-        int: The new vote count after increment
-
-    Raises:
-        ValueError: If option_id does not exist
-        psycopg.OperationalError: If database connection issue
-        psycopg.DatabaseError: For general database errors
-
-    Note:
-        This function assumes poll_options has a vote_count column.
-        The caller should ensure this is called within a transaction
-        for proper atomic behavior with vote creation.
-    """
-    try:
-        # Atomic increment using UPDATE with RETURNING
-        query = """
-            UPDATE poll_options
-            SET vote_count = COALESCE(vote_count, 0) + 1
-            WHERE id = %s
-            RETURNING vote_count
-        """
-        cursor.execute(query, (option_id,))
-        result = cursor.fetchone()
-
-        if result is None:
-            logger.warning(f"Increment vote count failed - option not found: {option_id}")
-            raise ValueError(f"Poll option not found with ID: {option_id}")
-
-        new_count = result[0]
-        logger.info(f"Vote count incremented for option {option_id}: new count = {new_count}")
-        return new_count
-
-    except psycopg.OperationalError as e:
-        logger.error(f"Increment vote count failed - database connection issue: {str(e)}")
-        raise
-    except psycopg.DatabaseError as e:
-        logger.error(f"Increment vote count failed - database error: {str(e)}")
-        raise
-
-
-def decrement_vote_count(cursor, option_id: str) -> int:
-    """
-    Atomically decrement the vote count for a poll option.
-    Ensures vote count does not go below zero.
-
-    Args:
-        cursor: Database cursor for executing queries
-        option_id (str): ID of the poll option to decrement
-
-    Returns:
-        int: The new vote count after decrement
-
-    Raises:
-        ValueError: If option_id does not exist
-        psycopg.OperationalError: If database connection issue
-        psycopg.DatabaseError: For general database errors
-    """
-    try:
-        query = """
-            UPDATE poll_options
-            SET vote_count = GREATEST(COALESCE(vote_count, 0) - 1, 0)
-            WHERE id = %s
-            RETURNING vote_count
-        """
-        cursor.execute(query, (option_id,))
-        result = cursor.fetchone()
-
-        if result is None:
-            logger.warning(f"Decrement vote count failed - option not found: {option_id}")
-            raise ValueError(f"Poll option not found with ID: {option_id}")
-
-        new_count = result[0]
-        logger.info(f"Vote count decremented for option {option_id}: new count = {new_count}")
-        return new_count
-
-    except psycopg.OperationalError as e:
-        logger.error(f"Decrement vote count failed - database connection issue: {str(e)}")
-        raise
-    except psycopg.DatabaseError as e:
-        logger.error(f"Decrement vote count failed - database error: {str(e)}")
-        raise
-
-
-def create_vote_with_count(connection, user_id: str, poll_id: str, option_id: str) -> Vote:
+def create_vote(connection, user_id: str, poll_id: str, option_id: str) -> Vote:
     """
     Create a vote and increment the option's vote count in a single transaction.
     Ensures atomicity between vote creation and count update.
@@ -734,4 +520,47 @@ def create_vote_with_count(connection, user_id: str, poll_id: str, option_id: st
         raise
     except psycopg.DatabaseError as e:
         logger.error(f"Vote creation failed - database error: {str(e)}")
+        raise
+
+
+def recalculate_poll_vote_counts(cursor, poll_id: str) -> dict:
+    """
+    Admin utility: Recalculate vote counts from votes table.
+    Use this to fix data inconsistencies or after data migration.
+
+    Args:
+        cursor: Database cursor for executing queries
+        poll_id (str): ID of the poll to recalculate
+
+    Returns:
+        dict: Dictionary mapping option_id to recalculated vote count
+
+    Raises:
+        psycopg.OperationalError: If database connection issue
+        psycopg.DatabaseError: For general database errors
+    """
+    try:
+        # Recalculate and update vote counts based on actual votes
+        cursor.execute("""
+            UPDATE poll_options po
+            SET vote_count = (
+                SELECT COUNT(*)
+                FROM votes v
+                WHERE v.option_id = po.id
+            )
+            WHERE po.poll_id = %s
+            RETURNING po.id, po.vote_count
+        """, (poll_id,))
+
+        rows = cursor.fetchall()
+        result = {row[0]: row[1] for row in rows}
+
+        logger.info(f"Recalculated vote counts for poll {poll_id}: {result}")
+        return result
+
+    except psycopg.OperationalError as e:
+        logger.error(f"Recalculate vote counts failed - database connection issue: {str(e)}")
+        raise
+    except psycopg.DatabaseError as e:
+        logger.error(f"Recalculate vote counts failed - database error: {str(e)}")
         raise
