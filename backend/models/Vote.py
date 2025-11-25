@@ -1,5 +1,5 @@
 from typing import Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 
 
@@ -21,7 +21,7 @@ class Vote:
         self.user_id = user_id
         self.poll_id = poll_id
         self.option_id = option_id
-        self.voted_at = voted_at or datetime.now()
+        self.voted_at = voted_at or datetime.now(timezone.utc)
 
     def __str__(self) -> str:
         return f"Vote(id={self.vote_id}, user={self.user_id}, poll={self.poll_id}, option={self.option_id})"

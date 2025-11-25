@@ -140,7 +140,7 @@ def store_password_reset_token(cursor, email: str, expiration_hours: int = 1) ->
     try:
         # Generate secure reset token
         reset_token = f"{uuid.uuid4()}-{int(time.time())}"
-        expires_at = datetime.now() + timedelta(hours=expiration_hours)
+        expires_at = datetime.now(timezone.utc) + timedelta(hours=expiration_hours)
 
         # Update user's reset token and expiration
         query = """UPDATE users
@@ -318,7 +318,7 @@ def create_vote(connection, user_id: str, poll_id: str, option_id: str) -> Vote:
                     cursor.execute("ROLLBACK")
                     raise PollNotActiveError(f"Poll {poll_id} is not active")
 
-                if expires_at is not None and expires_at < time.time():
+                if expires_at is not None and expires_at < datetime.now(timezone.utc):
                     cursor.execute("ROLLBACK")
                     raise PollNotActiveError(f"Poll {poll_id} has expired")
 
