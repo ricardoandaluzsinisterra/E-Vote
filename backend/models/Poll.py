@@ -76,7 +76,7 @@ class PollOption(BaseModel):
 
 class PollResponse(BaseModel):
     """Pydantic model for poll API responses with options and vote statistics."""
-    id: int
+    id: str
     title: str
     description: Optional[str]
     created_by: int
