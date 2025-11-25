@@ -303,7 +303,7 @@ def create_vote(connection, user_id: str, poll_id: str, option_id: str) -> Vote:
             try:
                 # Check if poll is active
                 cursor.execute("""
-                    SELECT is_active, ends_at
+                    SELECT is_active, expires_at
                     FROM polls
                     WHERE id = %s
                 """, (poll_id,))
@@ -313,12 +313,12 @@ def create_vote(connection, user_id: str, poll_id: str, option_id: str) -> Vote:
                     cursor.execute("ROLLBACK")
                     raise InvalidOptionError(f"Poll with ID {poll_id} does not exist")
 
-                is_active, ends_at = poll_row
+                is_active, expires_at = poll_row
                 if not is_active:
                     cursor.execute("ROLLBACK")
                     raise PollNotActiveError(f"Poll {poll_id} is not active")
 
-                if ends_at is not None and ends_at < time.time():
+                if expires_at is not None and expires_at < time.time():
                     cursor.execute("ROLLBACK")
                     raise PollNotActiveError(f"Poll {poll_id} has expired")
 
@@ -637,7 +637,7 @@ def create_vote_with_count(connection, user_id: str, poll_id: str, option_id: st
             try:
                 # Check if poll is active
                 cursor.execute("""
-                    SELECT is_active, ends_at
+                    SELECT is_active, expires_at
                     FROM polls
                     WHERE id = %s
                     FOR UPDATE
@@ -648,7 +648,7 @@ def create_vote_with_count(connection, user_id: str, poll_id: str, option_id: st
                     cursor.execute("ROLLBACK")
                     raise InvalidOptionError(f"Poll with ID {poll_id} does not exist")
 
-                is_active, ends_at = poll_row
+                is_active, expires_at = poll_row
                 if not is_active:
                     cursor.execute("ROLLBACK")
                     raise PollNotActiveError(f"Poll {poll_id} is not active")
