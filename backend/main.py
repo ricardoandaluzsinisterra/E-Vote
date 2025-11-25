@@ -1,8 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 import logging
-import psycopg
-import os
 
 from database.connection import DatabaseManager, get_database
 from database.operations import get_user_by_email_as_user, create_user
