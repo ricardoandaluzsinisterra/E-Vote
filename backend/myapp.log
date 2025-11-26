@@ -2,3 +2,25 @@ INFO:database.connection:Database connection successful
 INFO:database.connection:Database connection successful
 INFO:database.connection:Database connection successful
 INFO:database.connection:Database connection successful
+INFO:database.connection:Database connection successful
+INFO:database.connection:Database connection successful
+INFO:database.connection:Database connection successful
+INFO:database.connection:Database connection successful
+INFO:database.connection:Database connection successful
+INFO:database.connection:Database connection successful
+INFO:database.connection:Database connection successful
+INFO:database.connection:Database connection successful to postgres:5432
+WARNING:auth.jwt_handler:JWT_SECRET not set in environment; using a temporary insecure fallback (not for production).
+INFO:database.connection:Database connection successful to postgres:5432
+WARNING:auth.jwt_handler:JWT_SECRET not set in environment; using a temporary insecure fallback (not for production).
+INFO:database.connection:Database connection successful to postgres:5432
+INFO:e_vote:Database initialized on startup
+WARNING:auth.jwt_handler:JWT_SECRET not set in environment; using a temporary insecure fallback (not for production).
+INFO:database.connection:Database connection successful to postgres:5432
+INFO:e_vote:Database initialized on startup
+WARNING:auth.jwt_handler:JWT_SECRET not set in environment; using a temporary insecure fallback (not for production).
+INFO:database.connection:Database connection successful to postgres:5432
+WARNING:auth.jwt_handler:JWT_SECRET not set in environment; using a temporary insecure fallback (not for production).
+INFO:database.connection:Database connection successful to postgres:5432
+WARNING:auth.jwt_handler:JWT_SECRET not set in environment; using a temporary insecure fallback (not for production).
+INFO:database.connection:Database connection successful to postgres:5432

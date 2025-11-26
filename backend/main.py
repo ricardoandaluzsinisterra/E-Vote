@@ -1,8 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 import logging
-import psycopg
-import os
 
 from database.connection import DatabaseManager, get_database
 from database.operations import get_user_by_email_as_user, create_user
@@ -126,7 +124,7 @@ async def login_user(user_data: UserLoginRequest, db: DatabaseManager = Depends(
             detail="Invalid email or password"
         )
     
-    if not verify_password(user_data.password, user.password_hash):
+    if not verify_password(user.password_hash, user_data.password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password"

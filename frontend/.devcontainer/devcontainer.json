@@ -1,6 +1,6 @@
 {
   "name": "E-Vote Frontend Development",
-  "dockerComposeFile": "C:\\Users\\ricar\\Documents\\E-Vote\\docker-compose.yml",
+  "dockerComposeFile": "/home/student/Documents/E-Vote/docker-compose.yml",
   "service": "frontend",
   "workspaceFolder": "/app",
   

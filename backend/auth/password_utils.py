@@ -1,5 +1,7 @@
 import argon2
 import math
+import string
+from argon2.exceptions import VerifyMismatchError, InvalidHash
 
 hasher = argon2.PasswordHasher()
 
@@ -60,40 +62,42 @@ def calculate_entropy(password: str) -> float:
         
     Note:
         Entropy = password_length * log2(character_space_size)
-        Character spaces: lowercase(26) + uppercase(26) + digits(10) + symbols(33)
+        Character spaces: lowercase(26) + uppercase(26) + digits(10) + symbols=len(string.punctuation)
     """
     probable_characters = 0
-    
+
+    if not password:
+        return 0.0
+
     if any(c.islower() for c in password):
         probable_characters += 26
-    
+
     if any(c.isupper() for c in password):
         probable_characters += 26
-    
+
     if any(c.isdigit() for c in password):
         probable_characters += 10
-    
-    if any(c.isalnum() for c in password):
-        probable_characters += 33
-    
+
+    # Count punctuation/symbols properly (previous code used isalnum which was incorrect)
+    if any(c in string.punctuation for c in password):
+        probable_characters += len(string.punctuation)
+
+    # Avoid math domain error if probable_characters is 0
+    if probable_characters == 0:
+        return 0.0
+
     entropy = len(password) * math.log2(probable_characters)
-    
-    return entropy
+
+    return float(entropy)
 
 def verify_password(password_hash: str, password: str) -> bool:
     """
     Verify a plain text password against an Argon2 hash.
     
-    Args:
-        password_hash (str): Argon2 hashed password to verify against
-        password (str): Plain text password to verify
-        
     Returns:
         bool: True if password matches hash, False otherwise
-        
-    Raises:
-        argon2.exceptions.VerifyMismatchError: If password doesn't match
-        argon2.exceptions.InvalidHash: If hash format is invalid
     """
-    match = hasher.verify(password_hash, password)
-    return match
+    try:
+        return hasher.verify(password_hash, password)
+    except (VerifyMismatchError, InvalidHash):
+        return False

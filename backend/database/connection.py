@@ -4,7 +4,6 @@ import logging
 import psycopg
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(filename='myapp.log', level=logging.INFO)
 
 class DatabaseManager:
     _instance = None
@@ -39,29 +38,34 @@ class DatabaseManager:
         """
         # Retry logic
         for attempt in range(max_retries):
-            # Database connection through psycopg
+            # Database connection through psycopg with environment-configurable credentials
             try:
                 conn = psycopg.connect(
-                    host=os.environ['DB_HOST'],
-                    port=5432,
-                    user='postgres',
-                    password='password',
-                    dbname='user_info_db'
+                    host=os.environ.get("DB_HOST", "localhost"),
+                    port=int(os.environ.get("DB_PORT", 5432)),
+                    user=os.environ.get("DB_USER", "postgres"),
+                    password=os.environ.get("DB_PASSWORD", "postgres"),
+                    dbname=os.environ.get("DB_NAME", "user_info_db")
                 )
-                logger.info("Database connection successful")
-                
+                logger.info(
+                    "Database connection successful to %s:%s",
+                    os.environ.get("DB_HOST", "localhost"),
+                    os.environ.get("DB_PORT", 5432),
+                )
+
                 self.connection = conn
-            
+                # Ensure autocommit is set
                 self.connection.autocommit = True
                 self.cursor = self.connection.cursor()
-                
+
                 return conn
-                
+
             except psycopg.Error as e:
                 logger.warning(f"Connection attempt {attempt + 1} failed: {e}")
                 if attempt + 1 == max_retries:
                     logger.error("Max connection retries reached")
                     raise
+                # Exponential backoff
                 time.sleep(2 ** attempt)
             
     def get_cursor(self):
