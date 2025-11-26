@@ -417,10 +417,8 @@ def create_vote(connection, user_id: str, poll_id: str, option_id: str) -> Vote:
         psycopg.DatabaseError: For general database errors
     """
     try:
-        with connection.cursor() as cursor:
-            cursor.execute("BEGIN")
-
-            try:
+        with connection.transaction():
+            with connection.cursor() as cursor:
                 # Check if poll is active
                 cursor.execute("""
                     SELECT is_active, expires_at
@@ -431,12 +429,10 @@ def create_vote(connection, user_id: str, poll_id: str, option_id: str) -> Vote:
                 poll_row = cursor.fetchone()
 
                 if poll_row is None:
-                    cursor.execute("ROLLBACK")
                     raise InvalidOptionError(f"Poll with ID {poll_id} does not exist")
 
                 is_active, expires_at = poll_row
                 if not is_active:
-                    cursor.execute("ROLLBACK")
                     raise PollNotActiveError(f"Poll {poll_id} is not active")
 
                 # Verify option belongs to the poll and lock row
@@ -447,7 +443,6 @@ def create_vote(connection, user_id: str, poll_id: str, option_id: str) -> Vote:
                 """, (option_id, poll_id))
 
                 if cursor.fetchone() is None:
-                    cursor.execute("ROLLBACK")
                     raise InvalidOptionError(
                         f"Option {option_id} does not belong to poll {poll_id}"
                     )
@@ -459,7 +454,6 @@ def create_vote(connection, user_id: str, poll_id: str, option_id: str) -> Vote:
                 """, (user_id, poll_id))
 
                 if cursor.fetchone() is not None:
-                    cursor.execute("ROLLBACK")
                     raise DuplicateVoteError(
                         f"User {user_id} has already voted on poll {poll_id}"
                     )
@@ -482,8 +476,6 @@ def create_vote(connection, user_id: str, poll_id: str, option_id: str) -> Vote:
                     WHERE id = %s
                 """, (option_id,))
 
-                cursor.execute("COMMIT")
-
                 logger.info(
                     f"Vote created with count update: user={user_id}, "
                     f"poll={poll_id}, option={option_id}"
@@ -496,12 +488,6 @@ def create_vote(connection, user_id: str, poll_id: str, option_id: str) -> Vote:
                     option_id=option_id,
                     voted_at=voted_at
                 )
-
-            except (DuplicateVoteError, InvalidOptionError, PollNotActiveError):
-                raise
-            except Exception:
-                cursor.execute("ROLLBACK")
-                raise
 
     except psycopg.IntegrityError as e:
         error_msg = str(e)
