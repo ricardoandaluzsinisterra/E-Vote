@@ -1,6 +1,7 @@
 from typing import Optional, Dict, Any
 from datetime import datetime, timezone
 from uuid import UUID
+from models.vote_modules import *
 
 
 class Vote:
