@@ -1,11 +1,41 @@
 services:
-  backend:
+  auth:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: fastapi-backend
+    container_name: auth-service
     ports:
       - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+      - SERVICE_ROLE=auth
+      - DB_HOST=postgres
+      - DB_USER=postgres
+      - DB_PASSWORD=password
+      - DB_NAME=user_info_db
+      - REDIS_HOST=redis
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  db_ops:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: db-ops-service
+    # runs same image but designated for background DB operations / migrations
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
     depends_on:
       postgres:
         condition: service_healthy
@@ -13,6 +43,7 @@ services:
       - ./backend:/app
     environment:
       - PYTHONUNBUFFERED=1
+      - SERVICE_ROLE=db_ops
       - DB_HOST=postgres
       - DB_USER=postgres
       - DB_PASSWORD=password
@@ -20,7 +51,7 @@ services:
     networks:
       - app-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8001/health || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -36,7 +67,7 @@ services:
       - ./frontend:/app
       - /app/node_modules
     depends_on:
-      backend:
+      auth:
         condition: service_healthy
     environment:
       - VITE_API_URL=http://localhost:8000
@@ -61,8 +92,23 @@ services:
     networks:
       - app-network
 
+  redis:
+    image: redis:7-alpine
+    container_name: redis-1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    volumes:
+      - redis_data:/data
+    networks:
+      - app-network
+
 volumes:
   postgres_data:
+  redis_data:
 
 networks:
   app-network:
