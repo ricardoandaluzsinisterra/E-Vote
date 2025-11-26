@@ -2,7 +2,7 @@ services:
   auth:
     build:
       context: ./backend
-      dockerfile: Dockerfile
+      dockerfile: auth_service/Dockerfile
     container_name: auth-service
     ports:
       - "8000:8000"
@@ -32,10 +32,9 @@ services:
   db_ops:
     build:
       context: ./backend
-      dockerfile: Dockerfile
+      dockerfile: db_ops_service/Dockerfile
     container_name: db-ops-service
-    # runs same image but designated for background DB operations / migrations
-    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
+    # db_ops runs its own entrypoint (db_ops_service/Dockerfile) which starts the correct module
     depends_on:
       postgres:
         condition: service_healthy
