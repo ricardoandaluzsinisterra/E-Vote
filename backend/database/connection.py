@@ -2,6 +2,7 @@ import os
 import time
 import logging
 import psycopg
+import redis
 
 logger = logging.getLogger(__name__)
 
@@ -13,19 +14,21 @@ class DatabaseManager:
             cls._instance = super(DatabaseManager, cls).__new__(cls)
             cls._instance.connection = None
             cls._instance.cursor = None
+            cls._instance.redis_client = None
         return cls._instance
     
     def __init__(self):
-        """Initialize DatabaseManager with empty connection and cursor."""
+        """Initialize DatabaseManager with empty connection, cursor and optional redis client."""
         # Only initialize if not already initialized
         if not hasattr(self, '_initialized'):
             self.connection = None
             self.cursor = None
+            self.redis_client = None
             self._initialized = True
         
     def connect(self, max_retries=3):
         """
-        Establish database connection with retry logic.
+        Establish database connection with retry logic and initialize Redis client if configured.
         
         Args:
             max_retries (int): Maximum number of connection attempts (default: 3)
@@ -36,9 +39,8 @@ class DatabaseManager:
         Raises:
             psycopg.Error: If all connection attempts fail
         """
-        # Retry logic
+        # Retry logic for Postgres
         for attempt in range(max_retries):
-            # Database connection through psycopg with environment-configurable credentials
             try:
                 conn = psycopg.connect(
                     host=os.environ.get("DB_HOST", "localhost"),
@@ -58,12 +60,26 @@ class DatabaseManager:
                 self.connection.autocommit = True
                 self.cursor = self.connection.cursor()
 
+                # Initialize Redis client if configured via env
+                redis_host = os.environ.get("REDIS_HOST")
+                if redis_host:
+                    try:
+                        redis_port = int(os.environ.get("REDIS_PORT", 6379))
+                        redis_db = int(os.environ.get("REDIS_DB", 0))
+                        client = redis.Redis(host=redis_host, port=redis_port, db=redis_db, decode_responses=True)
+                        client.ping()
+                        self.redis_client = client
+                        logger.info("Redis connection successful to %s:%s db=%s", redis_host, redis_port, redis_db)
+                    except Exception as e:
+                        logger.warning("Redis initialization failed: %s", e)
+                        self.redis_client = None
+
                 return conn
 
             except psycopg.Error as e:
                 logger.warning(f"Connection attempt {attempt + 1} failed: {e}")
                 if attempt + 1 == max_retries:
-                    logger.error("Max connection retries reached")
+                    logger.error("Max connection retries reached for Postgres")
                     raise
                 # Exponential backoff
                 time.sleep(2 ** attempt)
@@ -120,4 +136,3 @@ def get_database() -> DatabaseManager:
     db = DatabaseManager()
     if db.cursor is None:
         raise RuntimeError("Database not connected. Ensure startup event has run.")
-    return db
