@@ -31,48 +31,63 @@ function Login() {
   };
 
   return (
-    <div>
-      <h1>Login</h1>
+    <main className="app-container">
+      <section className="auth-card" aria-labelledby="login-heading">
+        <h1 id="login-heading" className="auth-header">
+          Sign in
+        </h1>
 
-      {error && (
-        <div style={{ color: "red", marginBottom: "1rem" }}>{error}</div>
-      )}
+        {error && (
+          <div role="alert" aria-live="assertive" className="error">
+            {error}
+          </div>
+        )}
 
-      <form onSubmit={handleSubmit}>
-        <div>
-          <label htmlFor="email">Email:</label>
-          <input
-            type="email"
-            id="email"
-            value={email}
-            // Show what the user is typing live, while updating the state.
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
+        <form
+          onSubmit={handleSubmit}
+          aria-describedby={error ? "error-message" : undefined}
+        >
+          <div className="form-field">
+            <label htmlFor="email">Email</label>
+            <input
+              type="email"
+              id="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              aria-required="true"
+              autoComplete="email"
+              placeholder="you@example.com"
+            />
+          </div>
+
+          <div className="form-field">
+            <label htmlFor="password">Password</label>
+            <input
+              type="password"
+              id="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              aria-required="true"
+              autoComplete="current-password"
+              placeholder="Your password"
+            />
+          </div>
+
+          <div>
+            <button className="btn primary" type="submit" disabled={isLoading}>
+              {isLoading ? "Logging in..." : "Sign in"}
+            </button>
+          </div>
+        </form>
+
+        <div className="auth-footer muted">
+          <Link to="/">Home</Link>
+          <Link to="/register">Create account</Link>
         </div>
-
-        <div>
-          <label htmlFor="password">Password:</label>
-          <input
-            type="password"
-            id="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-        </div>
-
-        <button type="submit" disabled={isLoading}>
-          {isLoading ? "Logging in..." : "Login"}
-        </button>
-      </form>
-
-      <nav>
-        <Link to="/">Back to Home</Link>
-        {" | "}
-        <Link to="/register">Don't have an account? Register</Link>
-      </nav>
-    </div>
+      </section>
+    </main>
   );
 }
 

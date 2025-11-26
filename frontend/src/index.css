@@ -1,11 +1,23 @@
 :root {
+  /* Typography */
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+  /* Primary palette (blue + orange accents) */
+  --color-bg: #ffffff; /* main background */
+  --color-surface: #ffffff; /* card surface */
+  --color-text: #0b2540; /* deep slate for text */
+  --cerulean-600: #001bb7; /* primary blue */
+  --cerulean-700: #000f86; /* darker blue */
+  --cerulean-100: #e6eaff; /* light */
+  --accent: #ff8040; /* orange accent */
+  --danger: #c92a2a;
+  --shadow: 0 6px 18px rgba(3, 36, 56, 0.08);
+
+  color-scheme: light;
+  color: var(--color-text);
+  background-color: var(--color-bg);
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -14,20 +26,22 @@
 }
 
 a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
+  font-weight: 600;
+  color: var(--cerulean-600);
+  text-decoration: none;
 }
 a:hover {
-  color: #535bf2;
+  color: var(--cerulean-700);
 }
 
 body {
   margin: 0;
   display: flex;
-  place-items: center;
+  align-items: center;
+  justify-content: center;
   min-width: 320px;
   min-height: 100vh;
+  background-color: var(--color-bg);
 }
 
 h1 {
@@ -36,22 +50,107 @@ h1 {
 }
 
 button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
+  border-radius: 10px;
+  border: 0;
+  padding: 0.75em 1.25em;
+  font-size: 1rem;
+  font-weight: 600;
   font-family: inherit;
-  background-color: #1a1a1a;
   cursor: pointer;
-  transition: border-color 0.25s;
+  transition: box-shadow 0.15s ease, transform 0.08s ease;
 }
 button:hover {
-  border-color: #646cff;
+  transform: translateY(-1px);
 }
 button:focus,
 button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(0, 27, 183, 0.12);
+}
+
+/* Utility container for app pages */
+.app-container {
+  width: 100%;
+  max-width: 520px;
+  padding: 2rem;
+}
+
+/* Card used for auth screens */
+.auth-card {
+  background: var(--color-surface);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  padding: 2rem;
+  color: var(--color-text);
+}
+
+.auth-header {
+  margin: 0 0 1rem 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  margin-bottom: 1rem;
+}
+
+label {
+  font-size: 0.9rem;
+}
+
+input[type="email"],
+input[type="password"],
+input[type="text"] {
+  appearance: none;
+  border: 1px solid rgba(11, 37, 64, 0.08);
+  padding: 0.75rem 0.85rem;
+  border-radius: 8px;
+  font-size: 1rem;
+  background: #fff;
+  color: var(--color-text);
+}
+
+input:focus {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(0, 27, 183, 0.12);
+  border-color: var(--cerulean-600);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+}
+
+.btn.primary {
+  background: linear-gradient(180deg, var(--cerulean-600), var(--cerulean-700));
+  color: #fff;
+  box-shadow: 0 6px 14px rgba(0, 27, 183, 0.18);
+}
+
+.muted {
+  color: rgba(11, 37, 64, 0.6);
+  font-size: 0.95rem;
+}
+
+.error {
+  color: var(--danger);
+  font-size: 0.95rem;
+}
+
+/* small accessible link cluster */
+.auth-footer {
+  margin-top: 1rem;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
 }
 
 @media (prefers-color-scheme: light) {
@@ -60,9 +159,50 @@ button:focus-visible {
     background-color: #ffffff;
   }
   a:hover {
-    color: #747bff;
+    color: var(--cerulean-700);
   }
   button {
     background-color: #f9f9f9;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* dark theme tokens */
+    --color-bg: #041028; /* deep navy */
+    --color-surface: #071230; /* card surface */
+    --color-text: #eaf4ff; /* light text */
+    --cerulean-600: #001bb7; /* keep primary blue */
+    --cerulean-700: #2b43ff; /* slightly lighter for hover */
+    --cerulean-100: #0b1540;
+    --accent: #ff8040; /* orange accent */
+    --danger: #ff7b7b;
+    --shadow: 0 8px 26px rgba(0, 11, 25, 0.6);
+  }
+
+  body {
+    background-color: var(--color-bg);
+    color: var(--color-text);
+  }
+
+  .auth-card {
+    background: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.02),
+      rgba(255, 255, 255, 0.01)
+    );
+    border: 1px solid rgba(255, 255, 255, 0.04);
+  }
+
+  input[type="email"],
+  input[type="password"],
+  input[type="text"] {
+    background: rgba(255, 255, 255, 0.02);
+    color: var(--color-text);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .btn.primary {
+    box-shadow: 0 6px 24px rgba(0, 27, 183, 0.28);
   }
 }

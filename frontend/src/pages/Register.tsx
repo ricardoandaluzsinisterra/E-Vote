@@ -50,64 +50,85 @@ function Register() {
   };
 
   return (
-    <div>
-      <h1>Register</h1>
-      {error && (
-        <div style={{ color: "red", marginBottom: "1rem" }}>{error}</div>
-      )}
+    <main className="app-container">
+      <section className="auth-card" aria-labelledby="register-heading">
+        <h1 id="register-heading" className="auth-header">
+          Create account
+        </h1>
 
-      <form onSubmit={handleSubmit}>
-        <div>
-          <label htmlFor="email">Email:</label>
-          <input
-            id="email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
+        {error && (
+          <div role="alert" aria-live="assertive" className="error">
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit}>
+          <div className="form-field">
+            <label htmlFor="email">Email</label>
+            <input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              aria-required="true"
+              autoComplete="email"
+              placeholder="you@example.com"
+            />
+          </div>
+
+          <div className="form-field">
+            <label htmlFor="password">Password</label>
+            <input
+              id="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              aria-describedby="passwordHelp"
+              autoComplete="new-password"
+              placeholder="At least 8 characters"
+            />
+            <small id="passwordHelp" className="muted">
+              Password must be 8+ characters, include upper & lower letters, a
+              digit and a special character.
+            </small>
+          </div>
+
+          <div className="form-field">
+            <label htmlFor="confirmPassword">Confirm password</label>
+            <input
+              id="confirmPassword"
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              required
+              aria-required="true"
+              autoComplete="new-password"
+              placeholder="Repeat password"
+            />
+            {!passwordsMatch && confirmPassword.length > 0 && (
+              <p className="error">Passwords do not match.</p>
+            )}
+          </div>
+
+          <div>
+            <button
+              className="btn primary"
+              type="submit"
+              disabled={!canSubmit || isLoading}
+            >
+              {isLoading ? "Creating..." : "Create account"}
+            </button>
+          </div>
+        </form>
+
+        <div className="auth-footer muted">
+          <Link to="/">Home</Link>
+          <Link to="/login">Sign in</Link>
         </div>
-
-        <div>
-          <label htmlFor="password">Password:</label>
-          <input
-            id="password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            aria-describedby="passwordHelp"
-          />
-          <small id="passwordHelp">
-            Password must be 8+ characters, include uppercase and lowercase
-            letters, a digit, and a special character.
-          </small>
-        </div>
-
-        <div>
-          <label htmlFor="confirmPassword">Confirm Password:</label>
-          <input
-            id="confirmPassword"
-            type="password"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            required
-          />
-          {!passwordsMatch && confirmPassword.length > 0 && (
-            <p style={{ color: "red" }}>Passwords do not match.</p>
-          )}
-        </div>
-
-        <button type="submit" disabled={!canSubmit || isLoading}>
-          {isLoading ? "Registering..." : "Register"}
-        </button>
-      </form>
-
-      <nav>
-        <Link to="/">Back to Home</Link> {" | "}
-        <Link to="/login">Already have an account? Login</Link>
-      </nav>
-    </div>
+      </section>
+    </main>
   );
 }
 

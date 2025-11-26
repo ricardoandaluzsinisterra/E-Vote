@@ -22,3 +22,5 @@ WARNING:auth.jwt_handler:JWT_SECRET not set in environment; using a temporary in
 INFO:database.connection:Database connection successful to postgres:5432
 WARNING:auth.jwt_handler:JWT_SECRET not set in environment; using a temporary insecure fallback (not for production).
 INFO:database.connection:Database connection successful to postgres:5432
+WARNING:auth.jwt_handler:JWT_SECRET not set in environment; using a temporary insecure fallback (not for production).
+INFO:database.connection:Database connection successful to postgres:5432
