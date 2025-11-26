@@ -205,4 +205,85 @@ input:focus {
   .btn.primary {
     box-shadow: 0 6px 24px rgba(0, 27, 183, 0.28);
   }
+
+  /* make muted/description text readable in dark mode */
+  .muted,
+  .auth-card .muted,
+  .app-container .muted {
+    color: var(--color-text);
+    opacity: 0.9;
+  }
+}
+
+/* Dock (bottom-centered quick actions) */
+.dock {
+  position: fixed;
+  left: 50%;
+  bottom: 22px;
+  transform: translateX(-50%);
+  z-index: 1200;
+  pointer-events: auto;
+}
+.dock-list {
+  display: flex;
+  gap: 12px;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.02),
+    rgba(255, 255, 255, 0.01)
+  );
+  border-radius: 999px;
+  padding: 8px 12px;
+  box-shadow: 0 8px 30px rgba(3, 6, 23, 0.45);
+  align-items: center;
+}
+.dock-item {
+  list-style: none;
+}
+.dock-btn {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 56px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--color-text);
+  text-decoration: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+}
+.dock-btn .dock-icon {
+  font-size: 20px;
+  line-height: 1;
+}
+.dock-label {
+  font-size: 12px;
+  opacity: 0.9;
+}
+.dock-btn:hover,
+.dock-btn:focus {
+  background: rgba(255, 255, 255, 0.02);
+  transform: translateY(-4px);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.25);
+}
+.dock-btn:focus {
+  outline: 3px solid rgba(0, 27, 183, 0.15);
+}
+
+@media (max-width: 560px) {
+  .dock-list {
+    gap: 8px;
+    padding: 6px;
+  }
+  .dock-btn {
+    min-width: 48px;
+    padding: 6px 8px;
+  }
+  .dock-label {
+    display: none;
+  }
 }

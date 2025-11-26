@@ -20,12 +20,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const storedToken = localStorage.getItem("auth_token");
 
     if (storedToken) {
-      // TODO: Validate token and fetch user data, there should be already a token validation schema
-      setToken(storedToken);
-      // For now, just set loading to false
-      setIsLoading(false);
+      // Try to decode the token so we can restore the user on page refresh
+      try {
+        const decoded = decodeJWT(storedToken);
+        setToken(storedToken);
+        setUser({
+          user_id: decoded.user_id,
+          email: decoded.email,
+          // Force verified on frontend so unverified users can view UI while backend verification is not implemented
+          is_verified: true,
+        });
+      } catch (err) {
+        // If decoding fails, remove invalid token
+        localStorage.removeItem("auth_token");
+        setToken(null);
+        setUser(null);
+      } finally {
+        setIsLoading(false);
+      }
     } else {
-      setIsLoading(false);
+      // Allow a development preview mode: if `dev_preview` is set
+      // the app will behave as if a user is signed in (useful for styling)
+      const devPreview = localStorage.getItem("dev_preview");
+      if (devPreview === "true") {
+        // populate a minimal fake user so pages render as authenticated
+        setToken("dev_token");
+        setUser({
+          user_id: 0,
+          email: "dev@example.com",
+          is_verified: true,
+        });
+        setIsLoading(false);
+      } else {
+        setIsLoading(false);
+      }
     }
   }, []);
 
@@ -88,6 +116,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = () => {
     localStorage.removeItem("auth_token");
+    // clear dev preview as well when logging out
+    localStorage.removeItem("dev_preview");
     setToken(null);
     setUser(null);
   };
