@@ -21,6 +21,7 @@ services:
       - DB_PASSWORD=password
       - DB_NAME=user_info_db
       - REDIS_HOST=redis
+      - KAFKA_BOOTSTRAP=redpanda:9092
     networks:
       - app-network
     healthcheck:
@@ -47,6 +48,7 @@ services:
       - DB_USER=postgres
       - DB_PASSWORD=password
       - DB_NAME=user_info_db
+      - KAFKA_BOOTSTRAP=redpanda:9092
     networks:
       - app-network
     healthcheck:
@@ -105,10 +107,42 @@ services:
     networks:
       - app-network
 
-volumes:
-  postgres_data:
-  redis_data:
+  redpanda:
+    image: vectorized/redpanda:latest
+    container_name: redpanda
+    command: ["redpanda", "start", "--overprovisioned", "--smp", "1", "--reserve-memory", "0M", "--node-id", "0", "--check=false"]
+    ports:
+      - "9092:9092"
+    networks:
+      - app-network
+
+  db_worker:
+    build:
+      context: ./backend
+      dockerfile: db_ops_service/Dockerfile
+    container_name: db-worker
+    command: ["python", "db_ops_service/consumer_worker.py"]
+    depends_on:
+      redpanda:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+      - KAFKA_BOOTSTRAP=redpanda:9092
+      - KAFKA_TOPIC=user.events
+      - KAFKA_CONSUMER_GROUP=db_ops_group
+      - DB_HOST=postgres
+      - DB_USER=postgres
+      - DB_PASSWORD=password
+      - DB_NAME=user_info_db
+    networks:
+      - app-network
 
 networks:
   app-network:
-    driver: bridge
+
+volumes:
+  postgres_data:

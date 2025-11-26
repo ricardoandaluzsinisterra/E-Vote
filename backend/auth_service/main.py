@@ -1,7 +1,9 @@
 import os
+import json
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 import logging
+from aiokafka import AIOKafkaProducer
 
 from database.connection import DatabaseManager, get_database
 from database.operations import get_user_by_email_as_user, create_user
@@ -12,6 +14,9 @@ from models.auth_models import *
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(filename='myapp.log', level=logging.INFO)
+
+# Kafka producer (initialized on startup)
+producer: AIOKafkaProducer | None = None
 
 app = FastAPI()
 
@@ -36,6 +41,24 @@ async def startup():
     db = DatabaseManager()
     db.connect()
     db.initialize_tables()
+    global producer
+    kafka_bootstrap = os.getenv("KAFKA_BOOTSTRAP", "redpanda:9092")
+    try:
+        producer = AIOKafkaProducer(bootstrap_servers=kafka_bootstrap)
+        await producer.start()
+        logger.info("Kafka producer started (bootstrap=%s)", kafka_bootstrap)
+    except Exception as e:
+        logger.warning("Failed to start Kafka producer: %s", e)
+
+@app.on_event("shutdown")
+async def shutdown():
+    global producer
+    if producer:
+        try:
+            await producer.stop()
+            logger.info("Kafka producer stopped")
+        except Exception as e:
+            logger.warning("Error stopping Kafka producer: %s", e)
 
 @app.get("/health")
 async def health():
@@ -61,6 +84,14 @@ async def register_user(user_data: UserRegistrationRequest, db: DatabaseManager 
 
     new_user.password_hash = hash_password(user_data.password)
     created_user = create_user(db.get_cursor(), new_user)
+
+    # publish user.registered event to Kafka (best-effort)
+    try:
+        if producer:
+            payload = {"event": "user.registered", "user_id": created_user.user_id, "email": created_user.email}
+            await producer.send_and_wait("user.events", json.dumps(payload).encode())
+    except Exception as e:
+        logger.warning("Failed to publish user.registered event: %s", e)
 
     return RegistrationSuccessResponse(
         user=UserResponse(
