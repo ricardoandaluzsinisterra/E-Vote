@@ -174,3 +174,26 @@ Traceback (most recent call last):
   File "/app/auth_service/main.py", line 93, in register_user
     raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User with this email already exists")
 fastapi.exceptions.HTTPException
+INFO:auth_service.main:Kafka producer stopped
+INFO:db_ops_service.database.connection:Database connection successful to postgres:5432
+INFO:db_ops_service.database.connection:Redis connection successful to redis:6379 db=0
+INFO:auth_service.main:Kafka producer started (bootstrap=kafka:9092)
+INFO:auth_service.main:Kafka producer stopped
+INFO:database.connection:Database connection successful to postgres:5432
+INFO:database.connection:Redis connection successful to redis:6379 db=0
+INFO:__main__:Connected to Postgres/Redis via DatabaseManager
+INFO:__main__:Ensured events table exists
+INFO:__main__:Ensured users table exists
+INFO:aiokafka.consumer.subscription_state:Updating subscribed topics to: frozenset({'user.postgres.ops', 'user.redis.ops'})
+INFO:aiokafka.consumer.group_coordinator:Discovered coordinator 1 for group db_ops_group
+INFO:aiokafka.consumer.group_coordinator:Revoking previously assigned partitions set() for group db_ops_group
+INFO:aiokafka.consumer.group_coordinator:(Re-)joining group db_ops_group
+INFO:db_ops_service.database.connection:Database connection successful to postgres:5432
+INFO:db_ops_service.database.connection:Redis connection successful to redis:6379 db=0
+INFO:aiokafka.consumer.group_coordinator:Joined group 'db_ops_group' (generation 9) with member_id aiokafka-0.8.0-5b940856-2f77-40cf-af4a-2eafe9c805e0
+INFO:aiokafka.consumer.group_coordinator:Elected group leader -- performing partition assignments using roundrobin
+INFO:aiokafka.consumer.group_coordinator:Successfully synced group db_ops_group with generation 9
+INFO:aiokafka.consumer.group_coordinator:Setting newly assigned partitions {TopicPartition(topic='user.postgres.ops', partition=0), TopicPartition(topic='user.redis.ops', partition=0)} for group db_ops_group
+INFO:__main__:Kafka consumer started (bootstrap=kafka:9092, topics=['user.postgres.ops', 'user.redis.ops'], group=db_ops_group)
+INFO:db_ops_service.database.connection:Database connection successful to postgres:5432
+INFO:db_ops_service.database.connection:Redis connection successful to redis:6379 db=0

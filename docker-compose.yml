@@ -6,12 +6,11 @@ services:
     container_name: auth-service
     ports:
       - "8000:8000"
+    entrypoint: ["sh", "/app/auth_service/wait_for_services.sh"]
     command: ["uvicorn", "auth_service.main:app", "--host", "0.0.0.0", "--port", "8000"]
     depends_on:
-      kafka:
-        condition: service_healthy
-      db_ops:
-        condition: service_healthy
+      - kafka
+      - db_ops
     volumes:
       - ./backend:/app
     environment:
@@ -21,6 +20,7 @@ services:
       - KAFKA_POSTGRES_TOPIC=user.postgres.ops
       - KAFKA_REDIS_TOPIC=user.redis.ops
       - DB_OPS_URL=http://db_ops:8001
+      - WAIT_FOR=http://db_ops:8001/health
     networks:
       - app-network
     healthcheck:
@@ -28,6 +28,7 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+    restart: unless-stopped
 
   db_ops:
     build:
@@ -63,6 +64,7 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+    restart: unless-stopped
 
   frontend:
     build:
@@ -179,6 +181,7 @@ services:
       - REDIS_HOST=redis
     networks:
       - app-network
+    restart: unless-stopped
 
 networks:
   app-network: {}
