@@ -12,6 +12,8 @@ RUN apt-get update && apt-get install -y libpq-dev gcc && apt-get clean && \
 
 # Copy application code (build context is ./backend)
 COPY . .
+# Install shared models package so services can import models consistently
+RUN pip install --no-cache-dir ./models
 
 # Expose port for db_ops service
 EXPOSE 8001

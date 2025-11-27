@@ -13,6 +13,8 @@ RUN apt-get update && apt-get install -y libpq-dev gcc && apt-get clean && \
 
 # Copy application code
 COPY . .
+# Install shared models package so services can import models consistently
+RUN pip install --no-cache-dir ./models
 
 # Expose port 8000
 EXPOSE 8000
