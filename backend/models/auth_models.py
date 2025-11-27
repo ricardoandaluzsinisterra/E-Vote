@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr
-from typing import Optional, Union
+from typing import Optional
 
 class UserRegistrationRequest(BaseModel):
     email: EmailStr
@@ -10,7 +10,7 @@ class UserLoginRequest(BaseModel):
     password: str
 
 class UserResponse(BaseModel):
-    user_id: Union[int, str]
+    user_id: int
     email: str
     is_verified: bool
     created_at: Optional[str] = None
@@ -26,7 +26,7 @@ class MessageResponse(BaseModel):
     message: str
 
 class UserProfile(BaseModel):
-    user_id: Union[int, str]
+    user_id: int
     email: str
     is_verified: bool
     created_at: Optional[str] = None

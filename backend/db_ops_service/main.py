@@ -4,7 +4,13 @@ from fastapi.middleware.cors import CORSMiddleware
 import logging
 
 from db_ops_service.database.connection import DatabaseManager, get_database
-from db_ops_service.database.operations import get_user_by_id, get_user_by_email_as_user, verify_user, update_user_password
+from db_ops_service.database.operations import (
+    create_user,
+    get_user_by_id,
+    get_user_by_email_as_user,
+    verify_user,
+    update_user_password,
+)
 from models.User import User
 from models.auth_models import VerificationTokenRequest, UpdatePasswordRequest
 
@@ -69,6 +75,39 @@ async def api_get_user_by_email(email: str, db: DatabaseManager = Depends(get_da
         "verification_token": user.verification_token,
         "created_at": str(user.created_at)
     }
+
+
+@app.post("/db/create")
+async def api_create_user(payload: dict, db: DatabaseManager = Depends(get_database)):
+    """
+    Create a user synchronously in Postgres. Expects payload with:
+      - email (str)
+      - password_hash (str)
+      - verification_token (str) [optional]
+
+    Returns created user details (including integer `user_id`).
+    """
+    email = payload.get("email")
+    password_hash = payload.get("password_hash")
+    verification_token = payload.get("verification_token")
+
+    if not email or not password_hash:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="email and password_hash required")
+
+    # Build User object expected by create_user
+    temp_user = User(user_id=0, email=email, password_hash=password_hash, is_verified=False, verification_token=verification_token)
+    try:
+        created = create_user(db.get_cursor(), temp_user)
+        return {
+            "user_id": created.user_id,
+            "email": created.email,
+            "is_verified": created.is_verified,
+            "verification_token": created.verification_token,
+            "created_at": str(created.created_at)
+        }
+    except Exception as e:
+        logger.exception("Failed to create user: %s", e)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 @app.post("/db/verify")
 async def api_verify_user(token: VerificationTokenRequest, db: DatabaseManager = Depends(get_database)):

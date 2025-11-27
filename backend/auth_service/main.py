@@ -77,41 +77,47 @@ async def register_user(user_data: UserRegistrationRequest) -> RegistrationSucce
             detail=password_strength.get("message")
         )
 
-    # Create a lightweight user object and generate verification token & id locally
+    # Create a lightweight user object and generate verification token locally
     new_user = User.from_user_registration_request(user_data)
     new_user.password_hash = hash_password(user_data.password)
     new_user.verification_token = f"{uuid.uuid4()}-{int(__import__('time').time())}"
-    # Use UUID as temporary user id (db_ops_service may keep or map it)
-    new_user.user_id = str(uuid.uuid4())
 
-    # Publish user.create event to Postgres ops topic (db_ops_service will handle actual persistence)
-    payload = {
-        "op": "create",
-        "resource": "user",
-        "event": "user.registered",
-        "payload": {
-            "user_id": new_user.user_id,
+    # Synchronously request db_ops_service to persist the user so we get an integer user_id
+    try:
+        create_url = f"{DB_OPS_URL.rstrip('/')}/db/create"
+        req_payload = {
             "email": new_user.email,
             "password_hash": new_user.password_hash,
             "verification_token": new_user.verification_token
-        },
-        "meta": {"source": "auth-service"}
-    }
-
-    try:
-        if producer:
-            await producer.send_and_wait(POST_USER_TOPIC, json.dumps(payload).encode())
-            logger.info("Published user.create event for email=%s", new_user.email)
+        }
+        req_data = json.dumps(req_payload).encode("utf-8")
+        req = urllib.request.Request(create_url, data=req_data, method="POST", headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            if resp.status != 200:
+                body = resp.read().decode() if resp else ""
+                logger.warning("db_ops create returned %s: %s", resp.status, body)
+                raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="User persistence service unavailable")
+            body = resp.read().decode("utf-8")
+            created = json.loads(body)
+    except urllib.error.HTTPError as e:
+        body = None
+        try:
+            body = e.read().decode()
+        except Exception:
+            pass
+        logger.warning("db_ops create HTTPError %s: %s", getattr(e, 'code', None), body)
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="User persistence failed")
     except Exception as e:
-        logger.warning("Failed to publish user.create event: %s", e)
+        logger.exception("Failed to call db_ops_service create: %s", e)
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="User persistence unavailable")
 
-    # Return the verification token to the client (user will be created asynchronously)
+    # `created` should contain integer `user_id` and created_at
     return RegistrationSuccessResponse(
         user=UserResponse(
-            user_id=new_user.user_id,
-            email=new_user.email,
-            is_verified=new_user.is_verified,
-            created_at=str(new_user.created_at)
+            user_id=int(created.get("user_id")),
+            email=created.get("email"),
+            is_verified=created.get("is_verified", False),
+            created_at=created.get("created_at")
         ),
         verification_token=new_user.verification_token
     )
@@ -123,7 +129,8 @@ async def login_user(user_data: UserLoginRequest) -> TokenResponse:
     This keeps Postgres/Redis connections inside db_ops_service while still allowing auth to respond synchronously.
     """
     # Query db_ops_service for user by email
-    url = f"{DB_OPS_URL.rstrip('/')}/db/user-by-email?email={urllib.request.quote(user_data.email)}"
+    import urllib.parse
+    url = f"{DB_OPS_URL.rstrip('/')}/db/user-by-email?email={urllib.parse.quote(user_data.email)}"
     try:
         req = urllib.request.Request(url, method="GET")
         with urllib.request.urlopen(req, timeout=5) as resp:
