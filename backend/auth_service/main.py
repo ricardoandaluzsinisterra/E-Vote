@@ -8,8 +8,8 @@ from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from aiokafka import AIOKafkaProducer
 
-from auth.password_utils import *
-from auth.jwt_handler import generate_tokens
+from auth_service.auth.password_utils import *
+from auth_service.auth.jwt_handler import generate_tokens
 from models.User import User
 from models.auth_models import *
 
@@ -36,7 +36,7 @@ app.add_middleware(
 )
 
 SERVICE_ROLE = "auth"
-DB_OPS_URL = os.getenv("DB_OPS_URL", "http://db_ops_service:8000")
+DB_OPS_URL = os.getenv("DB_OPS_URL", "http://db-ops-service:8001")
 KAFKA_BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP", "kafka:9092")
 POST_USER_TOPIC = os.getenv("KAFKA_POSTGRES_TOPIC", "user.postgres.ops")
 
