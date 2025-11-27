@@ -9,3 +9,4 @@ argon2-cffi==21.3.0
 email-validator
 redis==4.6.0
 aiokafka==0.8.0
+kafka-python==2.0.2

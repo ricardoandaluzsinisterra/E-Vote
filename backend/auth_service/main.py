@@ -42,7 +42,7 @@ async def startup():
     db.connect()
     db.initialize_tables()
     global producer
-    kafka_bootstrap = os.getenv("KAFKA_BOOTSTRAP", "redpanda:9092")
+    kafka_bootstrap = os.getenv("KAFKA_BOOTSTRAP", "kafka:9092")
     try:
         producer = AIOKafkaProducer(bootstrap_servers=kafka_bootstrap)
         await producer.start()

@@ -24,3 +24,23 @@ WARNING:auth.jwt_handler:JWT_SECRET not set in environment; using a temporary in
 INFO:database.connection:Database connection successful to postgres:5432
 WARNING:auth.jwt_handler:JWT_SECRET not set in environment; using a temporary insecure fallback (not for production).
 INFO:database.connection:Database connection successful to postgres:5432
+INFO:database.connection:Database connection successful to postgres:5432
+INFO:database.connection:Database connection successful to postgres:5432
+INFO:database.connection:Database connection successful to postgres:5432
+WARNING:auth.jwt_handler:JWT_SECRET not set in environment; using a temporary insecure fallback (not for production).
+INFO:database.connection:Database connection successful to postgres:5432
+INFO:database.connection:Redis connection successful to redis:6379 db=0
+ERROR:aiokafka:Unable connect to "kafka:9092": [Errno 111] Connection refused
+WARNING:auth_service.main:Failed to start Kafka producer: KafkaConnectionError: Unable to bootstrap from [('kafka', 9092, <AddressFamily.AF_UNSPEC: 0>)]
+INFO:auth_service.main:Kafka producer stopped
+WARNING:auth.jwt_handler:JWT_SECRET not set in environment; using a temporary insecure fallback (not for production).
+INFO:database.connection:Database connection successful to postgres:5432
+INFO:database.connection:Redis connection successful to redis:6379 db=0
+ERROR:aiokafka:Unable connect to "kafka:9092": [Errno 111] Connection refused
+WARNING:auth_service.main:Failed to start Kafka producer: KafkaConnectionError: Unable to bootstrap from [('kafka', 9092, <AddressFamily.AF_UNSPEC: 0>)]
+INFO:auth_service.main:Kafka producer stopped
+WARNING:auth.jwt_handler:JWT_SECRET not set in environment; using a temporary insecure fallback (not for production).
+INFO:database.connection:Database connection successful to postgres:5432
+INFO:database.connection:Redis connection successful to redis:6379 db=0
+ERROR:aiokafka:Unable connect to "kafka:9092": [Errno 111] Connection refused
+WARNING:auth_service.main:Failed to start Kafka producer: KafkaConnectionError: Unable to bootstrap from [('kafka', 9092, <AddressFamily.AF_UNSPEC: 0>)]
