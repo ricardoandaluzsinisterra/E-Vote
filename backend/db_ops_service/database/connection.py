@@ -125,7 +125,7 @@ class DatabaseManager:
             );
         """)
 
-# FastAPI dependency for database access
+# FastAPI dependency for database access (internal to db_ops_service)
 def get_database() -> DatabaseManager:
     """
     FastAPI dependency that provides access to the singleton DatabaseManager.

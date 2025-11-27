@@ -3,8 +3,8 @@ from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 import logging
 
-from database.connection import DatabaseManager, get_database
-from database.operations import get_user_by_id, verify_user, update_user_password
+from db_ops_service.database.connection import DatabaseManager, get_database
+from db_ops_service.database.operations import get_user_by_id, get_user_by_email_as_user, verify_user, update_user_password
 from auth.password_utils import hash_password
 from models.User import User
 from models.auth_models import VerificationTokenRequest, UpdatePasswordRequest
@@ -49,6 +49,24 @@ async def api_get_user(user_id: int, db: DatabaseManager = Depends(get_database)
         "user_id": user.user_id,
         "email": user.email,
         "is_verified": user.is_verified,
+        "created_at": str(user.created_at)
+    }
+
+@app.get("/db/user-by-email")
+async def api_get_user_by_email(email: str, db: DatabaseManager = Depends(get_database)):
+    """
+    Lookup user by email. Returns full user details (including password_hash and verification_token)
+    so auth_service can perform login and verification checks without holding DB connections.
+    """
+    user = get_user_by_email_as_user(db.get_cursor(), email)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    return {
+        "user_id": user.user_id,
+        "email": user.email,
+        "password_hash": user.password_hash,
+        "is_verified": user.is_verified,
+        "verification_token": user.verification_token,
         "created_at": str(user.created_at)
     }
 

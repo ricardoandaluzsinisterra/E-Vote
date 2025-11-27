@@ -8,21 +8,19 @@ services:
       - "8000:8000"
     command: ["uvicorn", "auth_service.main:app", "--host", "0.0.0.0", "--port", "8000"]
     depends_on:
-      postgres:
+      kafka:
         condition: service_healthy
-      redis:
+      db_ops:
         condition: service_healthy
     volumes:
       - ./backend:/app
     environment:
       - PYTHONUNBUFFERED=1
       - SERVICE_ROLE=auth
-      - DB_HOST=postgres
-      - DB_USER=postgres
-      - DB_PASSWORD=password
-      - DB_NAME=user_info_db
-      - REDIS_HOST=redis
       - KAFKA_BOOTSTRAP=kafka:9092
+      - KAFKA_POSTGRES_TOPIC=user.postgres.ops
+      - KAFKA_REDIS_TOPIC=user.redis.ops
+      - DB_OPS_URL=http://db-ops-service:8001
     networks:
       - app-network
     healthcheck:
@@ -36,8 +34,14 @@ services:
       context: ./backend
       dockerfile: db_ops_service/Dockerfile
     container_name: db-ops-service
+    ports:
+      - "8001:8001"
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
         condition: service_healthy
     volumes:
       - ./backend:/app
@@ -48,7 +52,10 @@ services:
       - DB_USER=postgres
       - DB_PASSWORD=password
       - DB_NAME=user_info_db
+      - REDIS_HOST=redis
       - KAFKA_BOOTSTRAP=kafka:9092
+      - KAFKA_POSTGRES_TOPIC=user.postgres.ops
+      - KAFKA_REDIS_TOPIC=user.redis.ops
     networks:
       - app-network
     healthcheck:
@@ -155,17 +162,21 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     volumes:
       - ./backend:/app
     environment:
       - PYTHONUNBUFFERED=1
       - KAFKA_BOOTSTRAP=kafka:9092
-      - KAFKA_TOPIC=user.events
+      - KAFKA_POSTGRES_TOPIC=user.postgres.ops
+      - KAFKA_REDIS_TOPIC=user.redis.ops
       - KAFKA_CONSUMER_GROUP=db_ops_group
       - DB_HOST=postgres
       - DB_USER=postgres
       - DB_PASSWORD=password
       - DB_NAME=user_info_db
+      - REDIS_HOST=redis
     networks:
       - app-network
 

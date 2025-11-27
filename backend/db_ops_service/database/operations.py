@@ -5,7 +5,7 @@ import logging
 import json
 from typing import Optional
 from models.User import User
-from database.connection import DatabaseManager
+from db_ops_service.database.connection import DatabaseManager
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(filename='myapp.log', level=logging.INFO)

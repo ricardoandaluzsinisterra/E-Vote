@@ -1,142 +1,169 @@
-from fastapi import FastAPI, Depends, HTTPException, status
-from fastapi.middleware.cors import CORSMiddleware
+import os
+import json
+import uuid
 import logging
+import urllib.request
+import urllib.error
+import urllib.parse
+from fastapi import FastAPI, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
+from aiokafka import AIOKafkaProducer
 
-from database.connection import DatabaseManager, get_database
-from database.operations import get_user_by_email_as_user, create_user
 from auth.password_utils import *
 from auth.jwt_handler import generate_tokens
 from models.User import User
 from models.auth_models import *
 
-# Logger
 logger = logging.getLogger(__name__)
 logging.basicConfig(filename='myapp.log', level=logging.INFO)
 
+# Kafka producer (initialized on startup)
+producer: AIOKafkaProducer | None = None
+
 app = FastAPI()
 
-# Configure CORS for Docker network
 origins = [
     "http://localhost:5173",
     "http://localhost:3000",
-    "http://frontend:3000",  # Docker service name
+    "http://frontend:3000",
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # More permissive for Docker
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"]
 )
 
-@app.on_event("startup") 
+SERVICE_ROLE = "backend"
+DB_OPS_URL = os.getenv("DB_OPS_URL", "http://db-ops-service:8001")
+KAFKA_BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP", "kafka:9092")
+POST_USER_TOPIC = os.getenv("KAFKA_POSTGRES_TOPIC", "user.postgres.ops")
+
+@app.on_event("startup")
 async def startup():
-    """
-    Initialize database connection and create tables on application startup.
-    
-    Note:
-        This function runs once when the FastAPI application starts
-    """
-    db = DatabaseManager()
-    db.connect()
-    db.initialize_tables()
+    global producer
+    try:
+        producer = AIOKafkaProducer(bootstrap_servers=KAFKA_BOOTSTRAP)
+        await producer.start()
+        logger.info("Kafka producer started (bootstrap=%s)", KAFKA_BOOTSTRAP)
+    except Exception as e:
+        logger.warning("Failed to start Kafka producer: %s", e)
 
-@app.get("/")
-async def read_root():
-    """
-    Health check endpoint to verify the API is running.
-    
-    Returns:
-        dict: Simple message confirming backend is operational
-    """
-    return {"message": "Backend is running in Docker!"}
+@app.on_event("shutdown")
+async def shutdown():
+    global producer
+    if producer:
+        try:
+            await producer.stop()
+            logger.info("Kafka producer stopped")
+        except Exception as e:
+            logger.warning("Error stopping Kafka producer: %s", e)
 
-# TODO: Add proper exception/error handling
-# TODO: Add email verification handling
+@app.get("/health")
+async def health():
+    return {"status": "ok", "role": SERVICE_ROLE}
+
 @app.post("/register")
-async def register_user(user_data: UserRegistrationRequest, db: DatabaseManager = Depends(get_database)) -> RegistrationSuccessResponse:
+async def register_user(user_data: UserRegistrationRequest) -> RegistrationSuccessResponse:
     """
-    Register a new user with proper database integration.
-    
-    Args:
-        user_data (UserRegistrationRequest): User registration data containing email and password
-        db (DatabaseManager): Database manager dependency
-        
-    Returns:
-        dict: Registration success message with user data
-        
-    Note:
-        Now uses centralized database connection via dependency injection
+    Register: validate input locally, generate verification token and temporary id,
+    then publish a create event to Kafka. db_ops_service owns DB/Redis persistence.
     """
-    existing_user = get_user_by_email_as_user(db.get_cursor(), user_data.email)
-    if existing_user is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="User with this email already exists, please log in."
-        )
-    
-    # Create user object from registration data
-    new_user = User.from_user_registration_request(user_data)
-    
     password_strength = validate_password_strength(user_data.password)
-    
     if not password_strength.get("valid"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=password_strength.get("message")
         )
-    
+
+    new_user = User.from_user_registration_request(user_data)
     new_user.password_hash = hash_password(user_data.password)
-    
-    # Create user in database (this will update the user object with ID and verification token)
-    created_user = create_user(db.get_cursor(), new_user)
-    
+    new_user.verification_token = f"{uuid.uuid4()}-{int(__import__('time').time())}"
+    new_user.user_id = str(uuid.uuid4())
+
+    payload = {
+        "op": "create",
+        "resource": "user",
+        "event": "user.registered",
+        "payload": {
+            "user_id": new_user.user_id,
+            "email": new_user.email,
+            "password_hash": new_user.password_hash,
+            "verification_token": new_user.verification_token
+        },
+        "meta": {"source": "backend", "topic": POST_USER_TOPIC}
+    }
+
+    try:
+        if producer:
+            await producer.send_and_wait(POST_USER_TOPIC, json.dumps(payload).encode())
+            logger.info("Published user.create event for email=%s", new_user.email)
+    except Exception as e:
+        logger.warning("Failed to publish user.create event: %s", e)
+
     return RegistrationSuccessResponse(
         user=UserResponse(
-            user_id=created_user.user_id, 
-            email=created_user.email, 
-            is_verified=created_user.is_verified, 
-            created_at=str(created_user.created_at)
-            ),
-        verification_token=created_user.verification_token
-        )
+            user_id=new_user.user_id,
+            email=new_user.email,
+            is_verified=new_user.is_verified,
+            created_at=str(new_user.created_at)
+        ),
+        verification_token=new_user.verification_token
+    )
 
 @app.post("/login")
-async def login_user(user_data: UserLoginRequest, db: DatabaseManager = Depends(get_database)) -> TokenResponse:
+async def login_user(user_data: UserLoginRequest) -> TokenResponse:
     """
-    Authenticate a user and return a JWT token.
-    
-    Args:
-        user_data (UserLoginRequest): User login data containing email and password
-        db (DatabaseManager): Database manager dependency
-        
-    Returns:
-        TokenResponse: Access token and token type
-        
-    Raises:
-        HTTPException: If authentication fails
+    Login: perform synchronous read from db_ops_service HTTP endpoint to keep DB connections centralized.
     """
-    user = get_user_by_email_as_user(db.get_cursor(), user_data.email)
-    if user is None:
+    url = f"{DB_OPS_URL.rstrip('/')}/db/user-by-email?email={urllib.parse.quote(user_data.email)}"
+    try:
+        req = urllib.request.Request(url, method="GET")
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            if resp.status != 200:
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
+            body = resp.read().decode("utf-8")
+            data = json.loads(body)
+    except urllib.error.HTTPError as e:
+        body = None
+        try:
+            body = e.read().decode()
+        except Exception:
+            pass
+        logger.warning("db_ops lookup HTTPError %s: %s", getattr(e, 'code', None), body)
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
+    except Exception as e:
+        logger.exception("Failed to call db_ops_service for user lookup: %s", e)
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="User lookup service unavailable")
+
+    user = User(
+        user_id=data.get("user_id"),
+        email=data.get("email"),
+        password_hash=data.get("password_hash"),
+        is_verified=data.get("is_verified"),
+        verification_token=data.get("verification_token"),
+        created_at=data.get("created_at")
+    )
+
+    if user is None or user.email is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password"
         )
-    
+
     if not verify_password(user.password_hash, user_data.password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password"
         )
-    
+
     if not user.is_verified:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Email not verified. Please verify your email before logging in."
         )
-    
-    # Generate JWT token
+
     access_token = generate_tokens(user_id=user.user_id, email=user.email)
-    
     return TokenResponse(access_token=access_token, token_type="bearer")
