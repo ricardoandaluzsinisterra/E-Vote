@@ -2,9 +2,10 @@ import uuid
 import time
 import psycopg
 import logging
+import json
 from typing import Optional
 from models.User import User
-from database.connection import DatabaseManager
+from db_ops_service.database.connection import DatabaseManager
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(filename='myapp.log', level=logging.INFO)
@@ -176,27 +177,37 @@ def get_user_by_id(cursor, user_id: int) -> Optional[User]:
 def get_user_by_email_as_user(cursor, email: str) -> Optional[User]:
     """
     Retrieve a user from database by their email and return as User object.
-    
-    Args:
-        cursor: Database cursor for executing queries
-        email (str): Email address of the user to retrieve
-        
-    Returns:
-        Optional[User]: User object if found, None if not found
-        
-    Raises:
-        psycopg.DataError: If email format is invalid
-        psycopg.OperationalError: If database connection issue
-        psycopg.DatabaseError: For general database errors
+    Uses Redis (if available) to cache user lookup by email.
     """
     try:
+        # Attempt to read from Redis cache first
+        redis_client = DatabaseManager().redis_client
+        cache_key = f"user:email:{email}"
+        if redis_client:
+            try:
+                cached = redis_client.get(cache_key)
+                if cached:
+                    data = json.loads(cached)
+                    return User(
+                        user_id=data.get("user_id"),
+                        email=data.get("email"),
+                        password_hash=data.get("password_hash"),
+                        is_verified=data.get("is_verified"),
+                        verification_token=data.get("verification_token"),
+                        created_at=data.get("created_at")
+                    )
+            except Exception as e:
+                logger.warning(f"Redis get failed for key {cache_key}: {e}")
+
+        # Fallback to Postgres
         query = """SELECT id, email, password_hash, is_verified, verification_token, created_at 
                 FROM users WHERE email=%s"""
         cursor.execute(query, (email,))
         row = cursor.fetchone()
         if not row:
             return None
-        return User(
+
+        user = User(
             user_id=row[0],
             email=row[1],
             password_hash=row[2],
@@ -204,6 +215,22 @@ def get_user_by_email_as_user(cursor, email: str) -> Optional[User]:
             verification_token=row[4],
             created_at=row[5]
         )
+
+        # Cache result in Redis for subsequent lookups
+        if redis_client:
+            try:
+                redis_client.set(cache_key, json.dumps({
+                    "user_id": user.user_id,
+                    "email": user.email,
+                    "password_hash": user.password_hash,
+                    "is_verified": user.is_verified,
+                    "verification_token": user.verification_token,
+                    "created_at": str(user.created_at)
+                }), ex=3600)
+            except Exception as e:
+                logger.warning(f"Failed to cache user in Redis: {e}")
+
+        return user
     except psycopg.DataError as e:
         logger.error(f"Get user by email failed - invalid email format: {str(e)}")
         raise

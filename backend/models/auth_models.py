@@ -34,4 +34,13 @@ class UserProfile(BaseModel):
 class RegistrationSuccessResponse(BaseModel):
     message: str = "Registration successful"
     user: UserResponse
-    verification_token: Optional[str]
+    verification_token: Optional[str] = None
+
+
+class VerificationTokenRequest(BaseModel):
+    verification_token: str
+
+
+class UpdatePasswordRequest(BaseModel):
+    user_id: int
+    new_password: str
