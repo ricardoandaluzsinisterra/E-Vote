@@ -136,3 +136,4 @@ def get_database() -> DatabaseManager:
     db = DatabaseManager()
     if db.cursor is None:
         raise RuntimeError("Database not connected. Ensure startup event has run.")
+    return db
