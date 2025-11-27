@@ -5,7 +5,6 @@ import logging
 
 from db_ops_service.database.connection import DatabaseManager, get_database
 from db_ops_service.database.operations import get_user_by_id, get_user_by_email_as_user, verify_user, update_user_password
-from auth.password_utils import hash_password
 from models.User import User
 from models.auth_models import VerificationTokenRequest, UpdatePasswordRequest
 
@@ -29,6 +28,7 @@ app.add_middleware(
 )
 
 SERVICE_ROLE = "db_ops"
+AUTH_URL = os.getenv("AUTH_URL", "http://auth-service:8000")
 
 @app.on_event("startup")
 async def startup():
@@ -72,7 +72,8 @@ async def api_get_user_by_email(email: str, db: DatabaseManager = Depends(get_da
 
 @app.post("/db/verify")
 async def api_verify_user(token: VerificationTokenRequest, db: DatabaseManager = Depends(get_database)):
-    temp_user = User(verification_token=token.verification_token)
+    # Construct a minimal User object required by verify_user
+    temp_user = User(user_id=0, email="", password_hash="", verification_token=token.verification_token)
     try:
         updated = verify_user(db.get_cursor(), temp_user)
         # Optionally invalidate Redis cache for the user if present
@@ -89,8 +90,30 @@ async def api_verify_user(token: VerificationTokenRequest, db: DatabaseManager =
 
 @app.post("/db/update-password")
 async def api_update_password(req: UpdatePasswordRequest, db: DatabaseManager = Depends(get_database)):
-    temp_user = User(user_id=req.user_id)
-    new_hash = hash_password(req.new_password)
+    """
+    Update password endpoint expects the caller (auth-service) to provide a hashed password.
+    Auth-service is the single owner of hashing/verification logic and must hash the new password
+    before calling this endpoint.
+    """
+    temp_user = User(user_id=req.user_id, email="", password_hash="")
+    # Expect `req.new_password` to be plain text; delegate hashing to auth service
+    try:
+        import urllib.request, json
+        hash_url = f"{AUTH_URL.rstrip('/')}/internal/hash-password"
+        data = json.dumps({"password": req.new_password}).encode("utf-8")
+        req_h = urllib.request.Request(hash_url, data=data, method="POST", headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req_h, timeout=5) as resp:
+            if resp.status != 200:
+                raise Exception(f"Auth service hash failed: {resp.status}")
+            body = resp.read().decode("utf-8")
+            resp_json = json.loads(body)
+            new_hash = resp_json.get("password_hash")
+            if not new_hash:
+                raise Exception("No password_hash returned from auth service")
+    except Exception as e:
+        logger.exception("Failed to obtain password hash from auth service: %s", e)
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Auth service unavailable")
+
     updated = update_user_password(db.get_cursor(), temp_user, new_hash)
     # Invalidate Redis cache for this user id/email if possible
     try:

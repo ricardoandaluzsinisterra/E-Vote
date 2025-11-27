@@ -72,3 +72,38 @@ INFO:aiokafka.consumer.group_coordinator:Elected group leader -- performing part
 INFO:aiokafka.consumer.group_coordinator:Successfully synced group db_ops_group with generation 3
 INFO:aiokafka.consumer.group_coordinator:Setting newly assigned partitions {TopicPartition(topic='user.postgres.ops', partition=0), TopicPartition(topic='user.redis.ops', partition=0)} for group db_ops_group
 INFO:__main__:Kafka consumer started (bootstrap=kafka:9092, topics=['user.postgres.ops', 'user.redis.ops'], group=db_ops_group)
+INFO:database.connection:Database connection successful to postgres:5432
+INFO:database.connection:Redis connection successful to redis:6379 db=0
+INFO:__main__:Connected to Postgres/Redis via DatabaseManager
+INFO:__main__:Ensured events table exists
+INFO:__main__:Ensured users table exists
+INFO:aiokafka.consumer.subscription_state:Updating subscribed topics to: frozenset({'user.redis.ops', 'user.postgres.ops'})
+INFO:aiokafka.consumer.group_coordinator:Discovered coordinator 1 for group db_ops_group
+INFO:aiokafka.consumer.group_coordinator:Revoking previously assigned partitions set() for group db_ops_group
+INFO:aiokafka.consumer.group_coordinator:(Re-)joining group db_ops_group
+INFO:aiokafka.consumer.group_coordinator:Joined group 'db_ops_group' (generation 4) with member_id aiokafka-0.8.0-fcd88a83-7dd1-4cb9-8cbe-2069908607f3
+INFO:aiokafka.consumer.group_coordinator:Elected group leader -- performing partition assignments using roundrobin
+INFO:aiokafka.consumer.group_coordinator:Successfully synced group db_ops_group with generation 4
+INFO:aiokafka.consumer.group_coordinator:Setting newly assigned partitions {TopicPartition(topic='user.redis.ops', partition=0), TopicPartition(topic='user.postgres.ops', partition=0)} for group db_ops_group
+INFO:__main__:Kafka consumer started (bootstrap=kafka:9092, topics=['user.postgres.ops', 'user.redis.ops'], group=db_ops_group)
+INFO:database.connection:Database connection successful to postgres:5432
+INFO:database.connection:Redis connection successful to redis:6379 db=0
+INFO:__main__:Connected to Postgres/Redis via DatabaseManager
+INFO:__main__:Ensured events table exists
+INFO:__main__:Ensured users table exists
+INFO:aiokafka.consumer.subscription_state:Updating subscribed topics to: frozenset({'user.postgres.ops', 'user.redis.ops'})
+INFO:aiokafka.consumer.group_coordinator:Discovered coordinator 1 for group db_ops_group
+INFO:aiokafka.consumer.group_coordinator:Revoking previously assigned partitions set() for group db_ops_group
+INFO:aiokafka.consumer.group_coordinator:(Re-)joining group db_ops_group
+INFO:db_ops_service.database.connection:Database connection successful to postgres:5432
+INFO:db_ops_service.database.connection:Redis connection successful to redis:6379 db=0
+INFO:aiokafka.consumer.group_coordinator:Joined group 'db_ops_group' (generation 5) with member_id aiokafka-0.8.0-98db7461-882e-40f6-9743-ddf81e767b27
+INFO:aiokafka.consumer.group_coordinator:Elected group leader -- performing partition assignments using roundrobin
+INFO:aiokafka.consumer.group_coordinator:Successfully synced group db_ops_group with generation 5
+INFO:aiokafka.consumer.group_coordinator:Setting newly assigned partitions {TopicPartition(topic='user.postgres.ops', partition=0), TopicPartition(topic='user.redis.ops', partition=0)} for group db_ops_group
+INFO:__main__:Kafka consumer started (bootstrap=kafka:9092, topics=['user.postgres.ops', 'user.redis.ops'], group=db_ops_group)
+INFO:auth_service.main:Kafka producer started (bootstrap=kafka:9092)
+INFO:auth_service.main:Published user.create event for email=ci-user@example.com
+INFO:__main__:Handling event: {'op': 'create', 'resource': 'user', 'event': 'user.registered', 'payload': {'user_id': '2b2fb880-2963-4710-8396-62737f740250', 'email': 'ci-user@example.com', 'password_hash': '$argon2id$v=19$m=65536,t=3,p=4$3rOHDJGDa7DJz71D3Qrz6g$uPDKIjx4iQlaFpC9gZ49cLHRSphy8lj+9bOqptx0xa4', 'verification_token': '14ea02ca-89f2-42db-acc9-9e8380690478-1764214419'}, 'meta': {'source': 'auth-service', 'topic': 'user.postgres.ops'}}
+INFO:__main__:User already exists in Postgres: ci-user@example.com
+INFO:__main__:Existing user id=2

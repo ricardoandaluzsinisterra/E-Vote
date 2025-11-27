@@ -173,3 +173,33 @@ async def login_user(user_data: UserLoginRequest) -> TokenResponse:
 
     access_token = generate_tokens(user_id=user.user_id, email=user.email)
     return TokenResponse(access_token=access_token, token_type="bearer")
+
+
+# Internal endpoints for other services to centralize auth logic
+@app.post("/internal/hash-password")
+async def internal_hash_password(payload: dict):
+    """Return Argon2 hash for a plain password. Intended for internal use only."""
+    password = payload.get("password")
+    if not password:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="password required")
+    try:
+        hashed = hash_password(password)
+        return {"password_hash": hashed}
+    except Exception as e:
+        logger.exception("Internal hash failed: %s", e)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="hash failed")
+
+
+@app.post("/internal/verify-password")
+async def internal_verify_password(payload: dict):
+    """Verify a plain password against a stored hash. Intended for internal use only."""
+    password_hash = payload.get("password_hash")
+    password = payload.get("password")
+    if password_hash is None or password is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="password_hash and password required")
+    try:
+        valid = verify_password(password_hash, password)
+        return {"valid": bool(valid)}
+    except Exception as e:
+        logger.exception("Internal verify failed: %s", e)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="verify failed")
