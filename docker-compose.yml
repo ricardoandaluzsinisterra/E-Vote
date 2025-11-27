@@ -20,7 +20,7 @@ services:
       - KAFKA_BOOTSTRAP=kafka:9092
       - KAFKA_POSTGRES_TOPIC=user.postgres.ops
       - KAFKA_REDIS_TOPIC=user.redis.ops
-      - DB_OPS_URL=http://db-ops-service:8001
+      - DB_OPS_URL=http://db_ops:8001
     networks:
       - app-network
     healthcheck:

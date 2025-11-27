@@ -106,6 +106,15 @@ async def api_create_user(payload: dict, db: DatabaseManager = Depends(get_datab
             "created_at": str(created.created_at)
         }
     except Exception as e:
+        # Detect unique constraint violation for email and return 409 Conflict
+        try:
+            import psycopg
+            if isinstance(e, psycopg.IntegrityError):
+                logger.warning("Duplicate email attempted: %s", email)
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User with this email already exists")
+        except Exception:
+            # fall through to general error handling
+            pass
         logger.exception("Failed to create user: %s", e)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 

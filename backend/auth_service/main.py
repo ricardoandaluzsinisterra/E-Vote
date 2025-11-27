@@ -4,6 +4,7 @@ import uuid
 import logging
 import urllib.request
 import urllib.error
+import urllib.parse
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from aiokafka import AIOKafkaProducer
@@ -36,7 +37,7 @@ app.add_middleware(
 )
 
 SERVICE_ROLE = "auth"
-DB_OPS_URL = os.getenv("DB_OPS_URL", "http://db-ops-service:8001")
+DB_OPS_URL = os.getenv("DB_OPS_URL", "http://db_ops:8001")
 KAFKA_BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP", "kafka:9092")
 POST_USER_TOPIC = os.getenv("KAFKA_POSTGRES_TOPIC", "user.postgres.ops")
 
@@ -82,6 +83,24 @@ async def register_user(user_data: UserRegistrationRequest) -> RegistrationSucce
     new_user.password_hash = hash_password(user_data.password)
     new_user.verification_token = f"{uuid.uuid4()}-{int(__import__('time').time())}"
 
+    # Check if user already exists to avoid duplicate insert errors
+    try:
+        lookup_url = f"{DB_OPS_URL.rstrip('/')}/db/user-by-email?email={urllib.parse.quote(new_user.email)}"
+        req_lookup = urllib.request.Request(lookup_url, method="GET")
+        with urllib.request.urlopen(req_lookup, timeout=3) as resp_lookup:
+            if resp_lookup.status == 200:
+                # User already exists
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User with this email already exists")
+    except urllib.error.HTTPError as e:
+        # 404 means user not found (expected), other errors bubble up
+        if getattr(e, 'code', None) != 404:
+            logger.warning("db_ops lookup HTTPError during register %s", getattr(e, 'code', None))
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="User lookup service unavailable")
+    except Exception as e:
+        # timeout or other network errors
+        logger.exception("Failed to call db_ops_service for pre-create lookup: %s", e)
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="User lookup service unavailable")
+
     # Synchronously request db_ops_service to persist the user so we get an integer user_id
     try:
         create_url = f"{DB_OPS_URL.rstrip('/')}/db/create"
@@ -106,6 +125,9 @@ async def register_user(user_data: UserRegistrationRequest) -> RegistrationSucce
         except Exception:
             pass
         logger.warning("db_ops create HTTPError %s: %s", getattr(e, 'code', None), body)
+        # If db_ops returns 409 (duplicate), propagate 409 to the client
+        if getattr(e, 'code', None) == 409:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User with this email already exists")
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="User persistence failed")
     except Exception as e:
         logger.exception("Failed to call db_ops_service create: %s", e)

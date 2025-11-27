@@ -17,8 +17,15 @@ import subprocess
 import urllib.request
 import urllib.error
 
-EMAIL = sys.argv[1] if len(sys.argv) > 1 else "ci-user@example.com"
+DEFAULT_EMAIL = "ci-user@example.com"
+EMAIL = sys.argv[1] if len(sys.argv) > 1 else None
 PASSWORD = sys.argv[2] if len(sys.argv) > 2 else "StrongPass1!"
+
+# If no email was provided, generate a unique CI email to avoid duplicates
+if EMAIL is None:
+    local, domain = DEFAULT_EMAIL.split("@", 1)
+    ts = int(time.time())
+    EMAIL = f"{local}+{ts}@{domain}"
 
 def post_register(email: str, password: str, timeout: int = 10):
     url = "http://localhost:8000/register"
