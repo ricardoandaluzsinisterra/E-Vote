@@ -38,7 +38,7 @@ def validate_password_strength(password: str) -> dict:
     Returns:
         dict: Contains 'valid' (bool) and either 'message' or 'strength' key
               - If weak: {"valid": False, "message": "Password is too weak"}
-              - If good: {"valid": True, "strength": "Good"}  
+              - If good: {"valid": True, "strength": "Good"}
               - If excellent: {"valid": True, "strength": "Excellent"}
     """
     entropy = calculate_entropy(password)

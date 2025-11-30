@@ -1,22 +1,26 @@
 services:
-  backend:
+  auth:
     build:
       context: ./backend
-      dockerfile: Dockerfile
-    container_name: fastapi-backend
+      dockerfile: auth_service/Dockerfile
+    container_name: auth-service
     ports:
       - "8000:8000"
+    entrypoint: ["sh", "/app/auth_service/wait_for_services.sh"]
+    command: ["uvicorn", "auth_service.main:app", "--host", "0.0.0.0", "--port", "8000"]
     depends_on:
-      postgres:
-        condition: service_healthy
+      - kafka
+      - db_ops
     volumes:
       - ./backend:/app
     environment:
       - PYTHONUNBUFFERED=1
-      - DB_HOST=postgres
-      - DB_USER=postgres
-      - DB_PASSWORD=password
-      - DB_NAME=user_info_db
+      - SERVICE_ROLE=auth
+      - KAFKA_BOOTSTRAP=kafka:9092
+      - KAFKA_POSTGRES_TOPIC=user.postgres.ops
+      - KAFKA_REDIS_TOPIC=user.redis.ops
+      - DB_OPS_URL=http://db_ops:8001
+      - WAIT_FOR=http://db_ops:8001/health
     networks:
       - app-network
     healthcheck:
@@ -24,6 +28,43 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+    restart: unless-stopped
+
+  db_ops:
+    build:
+      context: ./backend
+      dockerfile: db_ops_service/Dockerfile
+    container_name: db-ops-service
+    ports:
+      - "8001:8001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+      - SERVICE_ROLE=db_ops
+      - DB_HOST=postgres
+      - DB_USER=postgres
+      - DB_PASSWORD=password
+      - DB_NAME=user_info_db
+      - REDIS_HOST=redis
+      - KAFKA_BOOTSTRAP=kafka:9092
+      - KAFKA_POSTGRES_TOPIC=user.postgres.ops
+      - KAFKA_REDIS_TOPIC=user.redis.ops
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8001/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
 
   frontend:
     build:
@@ -36,7 +77,7 @@ services:
       - ./frontend:/app
       - /app/node_modules
     depends_on:
-      backend:
+      auth:
         condition: service_healthy
     environment:
       - VITE_API_URL=http://localhost:8000
@@ -61,9 +102,90 @@ services:
     networks:
       - app-network
 
-volumes:
-  postgres_data:
+  redis:
+    image: redis:7-alpine
+    container_name: redis-1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    volumes:
+      - redis_data:/data
+    networks:
+      - app-network
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    networks:
+      - app-network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      # Bind listeners to different ports to avoid Kafka fatal error
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:29092
+      # Advertise container DNS for internal access and host:29092 for host access
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - app-network
+
+  db_worker:
+    build:
+      context: ./backend
+      dockerfile: db_ops_service/Dockerfile
+    container_name: db-worker
+    command: ["python", "db_ops_service/consumer_worker.py"]
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+      - KAFKA_BOOTSTRAP=kafka:9092
+      - KAFKA_POSTGRES_TOPIC=user.postgres.ops
+      - KAFKA_REDIS_TOPIC=user.redis.ops
+      - KAFKA_CONSUMER_GROUP=db_ops_group
+      - DB_HOST=postgres
+      - DB_USER=postgres
+      - DB_PASSWORD=password
+      - DB_NAME=user_info_db
+      - REDIS_HOST=redis
+    networks:
+      - app-network
+    restart: unless-stopped
 
 networks:
-  app-network:
-    driver: bridge
+  app-network: {}
+
+volumes:
+  postgres_data: {}
+  redis_data: {}

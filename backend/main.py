@@ -1,142 +1,71 @@
-from fastapi import FastAPI, Depends, HTTPException, status
-from fastapi.middleware.cors import CORSMiddleware
+import os
+import json
 import logging
+import urllib.request
+import urllib.error
+from fastapi import FastAPI, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
 
-from database.connection import DatabaseManager, get_database
-from database.operations import get_user_by_email_as_user, create_user
-from auth.password_utils import *
-from auth.jwt_handler import generate_tokens
-from models.User import User
-from models.auth_models import *
-
-# Logger
 logger = logging.getLogger(__name__)
 logging.basicConfig(filename='myapp.log', level=logging.INFO)
 
 app = FastAPI()
 
-# Configure CORS for Docker network
 origins = [
     "http://localhost:5173",
     "http://localhost:3000",
-    "http://frontend:3000",  # Docker service name
+    "http://frontend:3000",
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # More permissive for Docker
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"]
 )
 
-@app.on_event("startup") 
-async def startup():
-    """
-    Initialize database connection and create tables on application startup.
-    
-    Note:
-        This function runs once when the FastAPI application starts
-    """
-    db = DatabaseManager()
-    db.connect()
-    db.initialize_tables()
+SERVICE_ROLE = "backend"
+AUTH_SERVICE_URL = os.getenv("AUTH_SERVICE_URL", "http://auth-service:8000")
 
-@app.get("/")
-async def read_root():
-    """
-    Health check endpoint to verify the API is running.
-    
-    Returns:
-        dict: Simple message confirming backend is operational
-    """
-    return {"message": "Backend is running in Docker!"}
+@app.get("/health")
+async def health():
+    return {"status": "ok", "role": SERVICE_ROLE}
 
-# TODO: Add proper exception/error handling
-# TODO: Add email verification handling
+def proxy_post(path: str, body: dict, timeout: int = 5):
+    url = f"{AUTH_SERVICE_URL.rstrip('/')}{path}"
+    data = json.dumps(body).encode("utf-8")
+    req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"}, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            resp_body = resp.read().decode("utf-8")
+            if resp.status >= 400:
+                raise HTTPException(status_code=resp.status, detail=resp_body)
+            return json.loads(resp_body)
+    except urllib.error.HTTPError as e:
+        body_text = None
+        try:
+            body_text = e.read().decode()
+        except Exception:
+            pass
+        logger.warning("Auth service HTTPError %s: %s", getattr(e, "code", None), body_text)
+        raise HTTPException(status_code=getattr(e, "code", 502), detail=body_text or "Auth service error")
+    except Exception as e:
+        logger.exception("Failed to call auth service: %s", e)
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Auth service unavailable")
+
 @app.post("/register")
-async def register_user(user_data: UserRegistrationRequest, db: DatabaseManager = Depends(get_database)) -> RegistrationSuccessResponse:
+async def register_user(payload: dict):
     """
-    Register a new user with proper database integration.
-    
-    Args:
-        user_data (UserRegistrationRequest): User registration data containing email and password
-        db (DatabaseManager): Database manager dependency
-        
-    Returns:
-        dict: Registration success message with user data
-        
-    Note:
-        Now uses centralized database connection via dependency injection
+    Proxy registration requests to auth service which now owns all authentication logic.
     """
-    existing_user = get_user_by_email_as_user(db.get_cursor(), user_data.email)
-    if existing_user is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="User with this email already exists, please log in."
-        )
-    
-    # Create user object from registration data
-    new_user = User.from_user_registration_request(user_data)
-    
-    password_strength = validate_password_strength(user_data.password)
-    
-    if not password_strength.get("valid"):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=password_strength.get("message")
-        )
-    
-    new_user.password_hash = hash_password(user_data.password)
-    
-    # Create user in database (this will update the user object with ID and verification token)
-    created_user = create_user(db.get_cursor(), new_user)
-    
-    return RegistrationSuccessResponse(
-        user=UserResponse(
-            user_id=created_user.user_id, 
-            email=created_user.email, 
-            is_verified=created_user.is_verified, 
-            created_at=str(created_user.created_at)
-            ),
-        verification_token=created_user.verification_token
-        )
+    result = proxy_post("/register", payload)
+    return result
 
 @app.post("/login")
-async def login_user(user_data: UserLoginRequest, db: DatabaseManager = Depends(get_database)) -> TokenResponse:
+async def login_user(payload: dict):
     """
-    Authenticate a user and return a JWT token.
-    
-    Args:
-        user_data (UserLoginRequest): User login data containing email and password
-        db (DatabaseManager): Database manager dependency
-        
-    Returns:
-        TokenResponse: Access token and token type
-        
-    Raises:
-        HTTPException: If authentication fails
+    Proxy login requests to auth service which now handles lookup, verification and token issuance.
     """
-    user = get_user_by_email_as_user(db.get_cursor(), user_data.email)
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password"
-        )
-    
-    if not verify_password(user.password_hash, user_data.password):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password"
-        )
-    
-    if not user.is_verified:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Email not verified. Please verify your email before logging in."
-        )
-    
-    # Generate JWT token
-    access_token = generate_tokens(user_id=user.user_id, email=user.email)
-    
-    return TokenResponse(access_token=access_token, token_type="bearer")
+    result = proxy_post("/login", payload)
+    return result

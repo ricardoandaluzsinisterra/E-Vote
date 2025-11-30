@@ -7,3 +7,6 @@ python-multipart==0.0.20
 PyJWT==1.7.1
 argon2-cffi==21.3.0
 email-validator
+redis==4.6.0
+aiokafka==0.8.0
+kafka-python==2.0.2
