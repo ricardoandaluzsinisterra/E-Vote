@@ -286,6 +286,51 @@ def increment_vote_count(cursor, option_id: str) -> bool:
         logger.error(f"Vote count increment failed - database error: {str(e)}")
         raise
 
+def decrement_vote_count(cursor, option_id: str) -> bool:
+    """
+    Atomically decrement the vote_count for a specific poll option.
+
+    This function uses SQL UPDATE to atomically decrement the vote_count field
+    in the poll_options table. It should be called within the same transaction
+    as delete_vote() to ensure data consistency.
+
+    Args:
+        cursor: Database cursor for executing queries
+        option_id (str): UUID of the poll option to decrement
+
+    Returns:
+        bool: True if decrement was successful
+
+    Raises:
+        psycopg.DataError: If option_id format is invalid
+        psycopg.OperationalError: If database connection issue
+        psycopg.DatabaseError: For general database errors
+
+    Transaction Notes:
+        - This function should be called within the same transaction as delete_vote()
+        - When autocommit=True, use explicit BEGIN/COMMIT blocks for atomicity
+        - If either delete_vote() or decrement_vote_count() fails, rollback both
+    """
+    try:
+        query = "UPDATE poll_options SET vote_count = vote_count - 1 WHERE id = %s"
+        cursor.execute(query, (option_id,))
+
+        if cursor.rowcount == 0:
+            logger.warning(f"Vote count decrement failed - option not found: {option_id}")
+            raise ValueError(f"Poll option not found with ID: {option_id}")
+
+        logger.info(f"Vote count decremented successfully for option: {option_id}")
+        return True
+    except psycopg.DataError as e:
+        logger.error(f"Vote count decrement failed - invalid data format: {str(e)}")
+        raise
+    except psycopg.OperationalError as e:
+        logger.error(f"Vote count decrement failed - database connection issue: {str(e)}")
+        raise
+    except psycopg.DatabaseError as e:
+        logger.error(f"Vote count decrement failed - database error: {str(e)}")
+        raise
+
 def create_vote(cursor, user_id: int, poll_id: str, option_id: str) -> Dict[str, Any]:
     """
     Create a new vote for a user on a specific poll option and increment the vote count atomically.
@@ -501,7 +546,14 @@ def get_votes_by_poll(cursor, poll_id: str) -> List[Dict[str, Any]]:
 
 def delete_vote(cursor, user_id: int, poll_id: str) -> bool:
     """
-    Delete a user's vote from a poll.
+    Delete a user's vote from a poll and decrement the vote count atomically.
+
+    This function performs two operations in a single transaction:
+    1. Retrieve the option_id from the vote being deleted
+    2. Delete the vote record from the votes table
+    3. Decrement the vote_count for the selected option in poll_options table
+
+    Both operations are executed atomically - if either fails, both are rolled back.
 
     Args:
         cursor: Database cursor for executing queries
@@ -515,18 +567,49 @@ def delete_vote(cursor, user_id: int, poll_id: str) -> bool:
         psycopg.DataError: If data format is invalid
         psycopg.OperationalError: If database connection issue
         psycopg.DatabaseError: For general database errors
+
+    Transaction Notes:
+        - Uses explicit BEGIN/COMMIT blocks for atomic execution
+        - If autocommit=True on connection, transaction is isolated via BEGIN
+        - If vote deletion fails (e.g., not found), returns False without error
+        - If vote count decrement fails, transaction is rolled back
     """
     try:
-        query = "DELETE FROM votes WHERE user_id=%s AND poll_id=%s"
-        cursor.execute(query, (user_id, poll_id))
+        # Start explicit transaction for atomic operations
+        cursor.execute("BEGIN")
 
-        deleted = cursor.rowcount > 0
-        if deleted:
-            logger.info(f"Vote deleted successfully - user: {user_id}, poll: {poll_id}")
-        else:
-            logger.info(f"No vote found to delete - user: {user_id}, poll: {poll_id}")
+        try:
+            # First, get the option_id from the vote to be deleted
+            query = "SELECT option_id FROM votes WHERE user_id=%s AND poll_id=%s"
+            cursor.execute(query, (user_id, poll_id))
+            row = cursor.fetchone()
 
-        return deleted
+            if not row:
+                # No vote found, rollback and return False
+                cursor.execute("ROLLBACK")
+                logger.info(f"No vote found to delete - user: {user_id}, poll: {poll_id}")
+                return False
+
+            option_id = str(row[0])
+
+            # Delete the vote record
+            delete_query = "DELETE FROM votes WHERE user_id=%s AND poll_id=%s"
+            cursor.execute(delete_query, (user_id, poll_id))
+
+            # Decrement vote count for the option
+            decrement_vote_count(cursor, option_id)
+
+            # Commit transaction
+            cursor.execute("COMMIT")
+
+            logger.info(f"Vote deleted successfully - user: {user_id}, poll: {poll_id}, option: {option_id}")
+            return True
+
+        except Exception as e:
+            # Rollback transaction on any error
+            cursor.execute("ROLLBACK")
+            raise
+
     except psycopg.DataError as e:
         logger.error(f"Delete vote failed - invalid data format: {str(e)}")
         raise
