@@ -241,9 +241,61 @@ def get_user_by_email_as_user(cursor, email: str) -> Optional[User]:
         logger.error(f"Get user by email failed - database error: {str(e)}")
         raise
 
-def cast_vote(cursor, user_id: int, poll_id: str, option_id: str) -> Dict[str, Any]:
+def increment_vote_count(cursor, option_id: str) -> bool:
     """
-    Cast a vote for a user on a specific poll option.
+    Atomically increment the vote_count for a specific poll option.
+
+    This function uses SQL UPDATE to atomically increment the vote_count field
+    in the poll_options table. It should be called within the same transaction
+    as create_vote() to ensure data consistency.
+
+    Args:
+        cursor: Database cursor for executing queries
+        option_id (str): UUID of the poll option to increment
+
+    Returns:
+        bool: True if increment was successful
+
+    Raises:
+        psycopg.DataError: If option_id format is invalid
+        psycopg.OperationalError: If database connection issue
+        psycopg.DatabaseError: For general database errors
+
+    Transaction Notes:
+        - This function should be called within the same transaction as create_vote()
+        - When autocommit=True, use explicit BEGIN/COMMIT blocks for atomicity
+        - If either create_vote() or increment_vote_count() fails, rollback both
+    """
+    try:
+        query = "UPDATE poll_options SET vote_count = vote_count + 1 WHERE id = %s"
+        cursor.execute(query, (option_id,))
+
+        if cursor.rowcount == 0:
+            logger.warning(f"Vote count increment failed - option not found: {option_id}")
+            raise ValueError(f"Poll option not found with ID: {option_id}")
+
+        logger.info(f"Vote count incremented successfully for option: {option_id}")
+        return True
+    except psycopg.DataError as e:
+        logger.error(f"Vote count increment failed - invalid data format: {str(e)}")
+        raise
+    except psycopg.OperationalError as e:
+        logger.error(f"Vote count increment failed - database connection issue: {str(e)}")
+        raise
+    except psycopg.DatabaseError as e:
+        logger.error(f"Vote count increment failed - database error: {str(e)}")
+        raise
+
+def create_vote(cursor, user_id: int, poll_id: str, option_id: str) -> Dict[str, Any]:
+    """
+    Create a new vote for a user on a specific poll option and increment the vote count atomically.
+
+    This function performs two operations in a single transaction:
+    1. Insert a new vote record into the votes table
+    2. Increment the vote_count for the selected option in poll_options table
+
+    The UNIQUE constraint on (user_id, poll_id) prevents duplicate votes.
+    Both operations are executed atomically - if either fails, both are rolled back.
 
     Args:
         cursor: Database cursor for executing queries
@@ -255,43 +307,69 @@ def cast_vote(cursor, user_id: int, poll_id: str, option_id: str) -> Dict[str, A
         Dict[str, Any]: Vote data including id, user_id, poll_id, option_id, and voted_at
 
     Raises:
-        psycopg.IntegrityError: If user has already voted on this poll or foreign key constraint fails
+        psycopg.IntegrityError: If user already voted on this poll (duplicate vote detected)
         psycopg.DataError: If data format is invalid
         psycopg.OperationalError: If database connection issue
         psycopg.DatabaseError: For general database errors
+
+    Transaction Notes:
+        - Uses explicit BEGIN/COMMIT blocks for atomic execution
+        - If autocommit=True on connection, transaction is isolated via BEGIN
+        - If vote insertion fails (e.g., duplicate), transaction is rolled back
+        - If vote count increment fails, transaction is rolled back
     """
     try:
-        query = """INSERT INTO votes (user_id, poll_id, option_id)
-            VALUES (%s, %s, %s) RETURNING id, user_id, poll_id, option_id, voted_at"""
-        cursor.execute(query, (user_id, poll_id, option_id))
-        row = cursor.fetchone()
+        # Start explicit transaction for atomic operations
+        cursor.execute("BEGIN")
 
-        vote_data = {
-            "id": str(row[0]),
-            "user_id": row[1],
-            "poll_id": str(row[2]),
-            "option_id": str(row[3]),
-            "voted_at": row[4].isoformat() if row[4] else None
-        }
+        try:
+            # Insert new vote record
+            query = """INSERT INTO votes (user_id, poll_id, option_id)
+                VALUES (%s, %s, %s) RETURNING id, user_id, poll_id, option_id, voted_at"""
+            cursor.execute(query, (user_id, poll_id, option_id))
+            row = cursor.fetchone()
 
-        logger.info(f"Vote cast successfully - user: {user_id}, poll: {poll_id}, option: {option_id}")
-        return vote_data
+            # Increment vote count for the selected option
+            increment_vote_count(cursor, option_id)
+
+            # Commit transaction
+            cursor.execute("COMMIT")
+
+            vote_data = {
+                "id": str(row[0]),
+                "user_id": row[1],
+                "poll_id": str(row[2]),
+                "option_id": str(row[3]),
+                "voted_at": row[4].isoformat() if row[4] else None
+            }
+
+            logger.info(f"Vote created successfully - user: {user_id}, poll: {poll_id}, option: {option_id}")
+            return vote_data
+
+        except Exception as e:
+            # Rollback transaction on any error
+            cursor.execute("ROLLBACK")
+            raise
+
     except psycopg.IntegrityError as e:
-        logger.error(f"Vote casting failed - duplicate vote or invalid foreign key: {str(e)}")
+        logger.error(f"Vote creation failed - duplicate vote or invalid foreign key: {str(e)}")
         raise
     except psycopg.DataError as e:
-        logger.error(f"Vote casting failed - invalid data format: {str(e)}")
+        logger.error(f"Vote creation failed - invalid data format: {str(e)}")
         raise
     except psycopg.OperationalError as e:
-        logger.error(f"Vote casting failed - database connection issue: {str(e)}")
+        logger.error(f"Vote creation failed - database connection issue: {str(e)}")
         raise
     except psycopg.DatabaseError as e:
-        logger.error(f"Vote casting failed - database error: {str(e)}")
+        logger.error(f"Vote creation failed - database error: {str(e)}")
         raise
 
 def get_user_vote(cursor, user_id: int, poll_id: str) -> Optional[Dict[str, Any]]:
     """
-    Retrieve a user's vote for a specific poll.
+    Retrieve a user's vote for a specific poll with option details.
+
+    This function queries the votes table and joins with poll_options to include
+    the option text and other details in the returned vote data.
 
     Args:
         cursor: Database cursor for executing queries
@@ -299,7 +377,9 @@ def get_user_vote(cursor, user_id: int, poll_id: str) -> Optional[Dict[str, Any]
         poll_id (str): UUID of the poll
 
     Returns:
-        Optional[Dict[str, Any]]: Vote data if found, None if user hasn't voted on this poll
+        Optional[Dict[str, Any]]: Vote data if found, None if user hasn't voted on this poll.
+            Returned dict includes: id, user_id, poll_id, option_id, voted_at,
+            option_text, and vote_count
 
     Raises:
         psycopg.DataError: If data format is invalid
@@ -307,8 +387,13 @@ def get_user_vote(cursor, user_id: int, poll_id: str) -> Optional[Dict[str, Any]
         psycopg.DatabaseError: For general database errors
     """
     try:
-        query = """SELECT id, user_id, poll_id, option_id, voted_at
-                FROM votes WHERE user_id=%s AND poll_id=%s"""
+        query = """
+            SELECT v.id, v.user_id, v.poll_id, v.option_id, v.voted_at,
+                   po.option_text, po.vote_count, po.display_order
+            FROM votes v
+            JOIN poll_options po ON v.option_id = po.id
+            WHERE v.user_id=%s AND v.poll_id=%s
+        """
         cursor.execute(query, (user_id, poll_id))
         row = cursor.fetchone()
 
@@ -320,10 +405,13 @@ def get_user_vote(cursor, user_id: int, poll_id: str) -> Optional[Dict[str, Any]
             "user_id": row[1],
             "poll_id": str(row[2]),
             "option_id": str(row[3]),
-            "voted_at": row[4].isoformat() if row[4] else None
+            "voted_at": row[4].isoformat() if row[4] else None,
+            "option_text": row[5],
+            "vote_count": row[6],
+            "display_order": row[7]
         }
 
-        logger.info(f"User vote retrieved - user: {user_id}, poll: {poll_id}")
+        logger.info(f"User vote retrieved - user: {user_id}, poll: {poll_id}, option: {vote_data['option_text']}")
         return vote_data
     except psycopg.DataError as e:
         logger.error(f"Get user vote failed - invalid data format: {str(e)}")
@@ -337,14 +425,20 @@ def get_user_vote(cursor, user_id: int, poll_id: str) -> Optional[Dict[str, Any]
 
 def get_poll_votes(cursor, poll_id: str) -> List[Dict[str, Any]]:
     """
-    Get all votes for a specific poll.
+    Get all votes for a specific poll with option details and aggregated data.
+
+    This function queries all votes for a poll and joins with poll_options to include
+    option text and vote counts. The returned data includes both individual vote records
+    and aggregated vote count information per option.
 
     Args:
         cursor: Database cursor for executing queries
         poll_id (str): UUID of the poll
 
     Returns:
-        List[Dict[str, Any]]: List of all votes for the poll
+        List[Dict[str, Any]]: List of all votes for the poll with option details.
+            Each dict includes: id, user_id, poll_id, option_id, voted_at,
+            option_text, vote_count, and display_order
 
     Raises:
         psycopg.DataError: If data format is invalid
@@ -352,8 +446,14 @@ def get_poll_votes(cursor, poll_id: str) -> List[Dict[str, Any]]:
         psycopg.DatabaseError: For general database errors
     """
     try:
-        query = """SELECT id, user_id, poll_id, option_id, voted_at
-                FROM votes WHERE poll_id=%s"""
+        query = """
+            SELECT v.id, v.user_id, v.poll_id, v.option_id, v.voted_at,
+                   po.option_text, po.vote_count, po.display_order
+            FROM votes v
+            JOIN poll_options po ON v.option_id = po.id
+            WHERE v.poll_id=%s
+            ORDER BY v.voted_at DESC
+        """
         cursor.execute(query, (poll_id,))
         rows = cursor.fetchall()
 
@@ -364,7 +464,10 @@ def get_poll_votes(cursor, poll_id: str) -> List[Dict[str, Any]]:
                 "user_id": row[1],
                 "poll_id": str(row[2]),
                 "option_id": str(row[3]),
-                "voted_at": row[4].isoformat() if row[4] else None
+                "voted_at": row[4].isoformat() if row[4] else None,
+                "option_text": row[5],
+                "vote_count": row[6],
+                "display_order": row[7]
             }
             votes.append(vote_data)
 
@@ -379,6 +482,22 @@ def get_poll_votes(cursor, poll_id: str) -> List[Dict[str, Any]]:
     except psycopg.DatabaseError as e:
         logger.error(f"Get poll votes failed - database error: {str(e)}")
         raise
+
+# Alias for get_poll_votes to match naming convention in requirements
+def get_votes_by_poll(cursor, poll_id: str) -> List[Dict[str, Any]]:
+    """
+    Alias for get_poll_votes(). Get all votes for a specific poll with option details.
+
+    See get_poll_votes() documentation for full details.
+
+    Args:
+        cursor: Database cursor for executing queries
+        poll_id (str): UUID of the poll
+
+    Returns:
+        List[Dict[str, Any]]: List of all votes for the poll with option details
+    """
+    return get_poll_votes(cursor, poll_id)
 
 def delete_vote(cursor, user_id: int, poll_id: str) -> bool:
     """
