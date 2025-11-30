@@ -759,7 +759,10 @@ def get_poll_by_id(cursor, poll_id: str) -> Optional[Dict[str, Any]]:
 
 def get_active_polls(cursor) -> List[Dict[str, Any]]:
     """
-    Get all active polls with their options.
+    Get all active polls with their options using a single JOIN query.
+
+    Optimized to eliminate N+1 query pattern by fetching polls and options
+    in a single database query, then grouping results in Python.
 
     Args:
         cursor: Database cursor for executing queries
@@ -773,41 +776,49 @@ def get_active_polls(cursor) -> List[Dict[str, Any]]:
         psycopg.DatabaseError: For general database errors
     """
     try:
-        # Get all active polls
-        polls_query = """SELECT id, title, description, created_by, created_at, expires_at, is_active
-                FROM polls WHERE is_active=TRUE ORDER BY created_at DESC"""
-        cursor.execute(polls_query)
-        poll_rows = cursor.fetchall()
+        # Single query with LEFT JOIN to fetch polls and their options
+        # This eliminates the N+1 query pattern by reducing N+1 queries to just 1
+        query = """
+            SELECT p.id, p.title, p.description, p.created_by, p.created_at, p.expires_at, p.is_active,
+                   po.id, po.poll_id, po.option_text, po.vote_count, po.display_order
+            FROM polls p
+            LEFT JOIN poll_options po ON p.id = po.poll_id
+            WHERE p.is_active = TRUE
+            ORDER BY p.created_at DESC, po.display_order
+        """
+        cursor.execute(query)
+        rows = cursor.fetchall()
 
-        polls = []
-        for poll_row in poll_rows:
-            poll_data = {
-                "id": str(poll_row[0]),
-                "title": poll_row[1],
-                "description": poll_row[2],
-                "created_by": poll_row[3],
-                "created_at": poll_row[4].isoformat() if poll_row[4] else None,
-                "expires_at": poll_row[5].isoformat() if poll_row[5] else None,
-                "is_active": poll_row[6],
-                "options": []
-            }
+        # Group results by poll_id to structure the response
+        polls_dict = {}
+        for row in rows:
+            poll_id = str(row[0])
 
-            # Get options for this poll
-            options_query = """SELECT id, poll_id, option_text, vote_count, display_order
-                    FROM poll_options WHERE poll_id=%s ORDER BY display_order"""
-            cursor.execute(options_query, (str(poll_row[0]),))
-            option_rows = cursor.fetchall()
+            # Create poll entry if it doesn't exist
+            if poll_id not in polls_dict:
+                polls_dict[poll_id] = {
+                    "id": poll_id,
+                    "title": row[1],
+                    "description": row[2],
+                    "created_by": row[3],
+                    "created_at": row[4].isoformat() if row[4] else None,
+                    "expires_at": row[5].isoformat() if row[5] else None,
+                    "is_active": row[6],
+                    "options": []
+                }
 
-            for option_row in option_rows:
-                poll_data["options"].append({
-                    "id": str(option_row[0]),
-                    "poll_id": str(option_row[1]),
-                    "option_text": option_row[2],
-                    "vote_count": option_row[3],
-                    "display_order": option_row[4]
+            # Add option if it exists (LEFT JOIN may return NULL for polls without options)
+            if row[7] is not None:
+                polls_dict[poll_id]["options"].append({
+                    "id": str(row[7]),
+                    "poll_id": str(row[8]),
+                    "option_text": row[9],
+                    "vote_count": row[10],
+                    "display_order": row[11]
                 })
 
-            polls.append(poll_data)
+        # Convert dict to list, maintaining order from ORDER BY clause
+        polls = list(polls_dict.values())
 
         logger.info(f"Active polls retrieved - count: {len(polls)}")
         return polls
