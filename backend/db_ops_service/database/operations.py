@@ -492,7 +492,7 @@ def get_poll_votes(cursor, poll_id: str) -> List[Dict[str, Any]]:
             FROM votes v
             JOIN poll_options po ON v.option_id = po.id
             WHERE v.poll_id=%s
-            ORDER BY v.voted_at DESC
+            ORDER BY po.display_order
         """
         cursor.execute(query, (poll_id,))
         rows = cursor.fetchall()
