@@ -106,14 +106,14 @@ class DatabaseManager:
         
     def initialize_tables(self):
         """
-        Create the users table if it doesn't exist.
-        
+        Create the users and votes tables if they don't exist.
+
         Raises:
             RuntimeError: If cursor is not available (connect() not called)
         """
         if self.cursor is None:
             raise RuntimeError("Database cursor not available. Ensure connect() is called first.")
-        
+
         self.cursor.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
@@ -123,6 +123,28 @@ class DatabaseManager:
                 verification_token VARCHAR(255),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
+        """)
+
+        self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS votes (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                user_id INTEGER NOT NULL,
+                poll_id INTEGER NOT NULL,
+                option_id INTEGER NOT NULL,
+                voted_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                CONSTRAINT unique_user_poll UNIQUE (user_id, poll_id),
+                CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                CONSTRAINT fk_poll FOREIGN KEY (poll_id) REFERENCES polls(id) ON DELETE CASCADE,
+                CONSTRAINT fk_option FOREIGN KEY (option_id) REFERENCES poll_options(id) ON DELETE CASCADE
+            );
+        """)
+
+        self.cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_votes_user_id ON votes(user_id);
+        """)
+
+        self.cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_votes_poll_id ON votes(poll_id);
         """)
 
 # FastAPI dependency for database access (internal to db_ops_service)

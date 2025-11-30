@@ -3,7 +3,7 @@ import time
 import psycopg
 import logging
 import json
-from typing import Optional
+from typing import Optional, Dict, Any, List
 from models.User import User
 from db_ops_service.database.connection import DatabaseManager
 
@@ -239,4 +239,181 @@ def get_user_by_email_as_user(cursor, email: str) -> Optional[User]:
         raise
     except psycopg.DatabaseError as e:
         logger.error(f"Get user by email failed - database error: {str(e)}")
+        raise
+
+def cast_vote(cursor, user_id: int, poll_id: int, option_id: int) -> Dict[str, Any]:
+    """
+    Cast a vote for a user on a specific poll option.
+
+    Args:
+        cursor: Database cursor for executing queries
+        user_id (int): ID of the user casting the vote
+        poll_id (int): ID of the poll being voted on
+        option_id (int): ID of the selected poll option
+
+    Returns:
+        Dict[str, Any]: Vote data including id, user_id, poll_id, option_id, and voted_at
+
+    Raises:
+        psycopg.IntegrityError: If user has already voted on this poll or foreign key constraint fails
+        psycopg.DataError: If data format is invalid
+        psycopg.OperationalError: If database connection issue
+        psycopg.DatabaseError: For general database errors
+    """
+    try:
+        query = """INSERT INTO votes (user_id, poll_id, option_id)
+            VALUES (%s, %s, %s) RETURNING id, user_id, poll_id, option_id, voted_at"""
+        cursor.execute(query, (user_id, poll_id, option_id))
+        row = cursor.fetchone()
+
+        vote_data = {
+            "id": str(row[0]),
+            "user_id": row[1],
+            "poll_id": row[2],
+            "option_id": row[3],
+            "voted_at": row[4].isoformat() if row[4] else None
+        }
+
+        logger.info(f"Vote cast successfully - user: {user_id}, poll: {poll_id}, option: {option_id}")
+        return vote_data
+    except psycopg.IntegrityError as e:
+        logger.error(f"Vote casting failed - duplicate vote or invalid foreign key: {str(e)}")
+        raise
+    except psycopg.DataError as e:
+        logger.error(f"Vote casting failed - invalid data format: {str(e)}")
+        raise
+    except psycopg.OperationalError as e:
+        logger.error(f"Vote casting failed - database connection issue: {str(e)}")
+        raise
+    except psycopg.DatabaseError as e:
+        logger.error(f"Vote casting failed - database error: {str(e)}")
+        raise
+
+def get_user_vote(cursor, user_id: int, poll_id: int) -> Optional[Dict[str, Any]]:
+    """
+    Retrieve a user's vote for a specific poll.
+
+    Args:
+        cursor: Database cursor for executing queries
+        user_id (int): ID of the user
+        poll_id (int): ID of the poll
+
+    Returns:
+        Optional[Dict[str, Any]]: Vote data if found, None if user hasn't voted on this poll
+
+    Raises:
+        psycopg.DataError: If data format is invalid
+        psycopg.OperationalError: If database connection issue
+        psycopg.DatabaseError: For general database errors
+    """
+    try:
+        query = """SELECT id, user_id, poll_id, option_id, voted_at
+                FROM votes WHERE user_id=%s AND poll_id=%s"""
+        cursor.execute(query, (user_id, poll_id))
+        row = cursor.fetchone()
+
+        if not row:
+            return None
+
+        vote_data = {
+            "id": str(row[0]),
+            "user_id": row[1],
+            "poll_id": row[2],
+            "option_id": row[3],
+            "voted_at": row[4].isoformat() if row[4] else None
+        }
+
+        logger.info(f"User vote retrieved - user: {user_id}, poll: {poll_id}")
+        return vote_data
+    except psycopg.DataError as e:
+        logger.error(f"Get user vote failed - invalid data format: {str(e)}")
+        raise
+    except psycopg.OperationalError as e:
+        logger.error(f"Get user vote failed - database connection issue: {str(e)}")
+        raise
+    except psycopg.DatabaseError as e:
+        logger.error(f"Get user vote failed - database error: {str(e)}")
+        raise
+
+def get_poll_votes(cursor, poll_id: int) -> List[Dict[str, Any]]:
+    """
+    Get all votes for a specific poll.
+
+    Args:
+        cursor: Database cursor for executing queries
+        poll_id (int): ID of the poll
+
+    Returns:
+        List[Dict[str, Any]]: List of all votes for the poll
+
+    Raises:
+        psycopg.DataError: If data format is invalid
+        psycopg.OperationalError: If database connection issue
+        psycopg.DatabaseError: For general database errors
+    """
+    try:
+        query = """SELECT id, user_id, poll_id, option_id, voted_at
+                FROM votes WHERE poll_id=%s"""
+        cursor.execute(query, (poll_id,))
+        rows = cursor.fetchall()
+
+        votes = []
+        for row in rows:
+            vote_data = {
+                "id": str(row[0]),
+                "user_id": row[1],
+                "poll_id": row[2],
+                "option_id": row[3],
+                "voted_at": row[4].isoformat() if row[4] else None
+            }
+            votes.append(vote_data)
+
+        logger.info(f"Poll votes retrieved - poll: {poll_id}, count: {len(votes)}")
+        return votes
+    except psycopg.DataError as e:
+        logger.error(f"Get poll votes failed - invalid data format: {str(e)}")
+        raise
+    except psycopg.OperationalError as e:
+        logger.error(f"Get poll votes failed - database connection issue: {str(e)}")
+        raise
+    except psycopg.DatabaseError as e:
+        logger.error(f"Get poll votes failed - database error: {str(e)}")
+        raise
+
+def delete_vote(cursor, user_id: int, poll_id: int) -> bool:
+    """
+    Delete a user's vote from a poll.
+
+    Args:
+        cursor: Database cursor for executing queries
+        user_id (int): ID of the user
+        poll_id (int): ID of the poll
+
+    Returns:
+        bool: True if vote was deleted, False if no vote was found
+
+    Raises:
+        psycopg.DataError: If data format is invalid
+        psycopg.OperationalError: If database connection issue
+        psycopg.DatabaseError: For general database errors
+    """
+    try:
+        query = "DELETE FROM votes WHERE user_id=%s AND poll_id=%s"
+        cursor.execute(query, (user_id, poll_id))
+
+        deleted = cursor.rowcount > 0
+        if deleted:
+            logger.info(f"Vote deleted successfully - user: {user_id}, poll: {poll_id}")
+        else:
+            logger.info(f"No vote found to delete - user: {user_id}, poll: {poll_id}")
+
+        return deleted
+    except psycopg.DataError as e:
+        logger.error(f"Delete vote failed - invalid data format: {str(e)}")
+        raise
+    except psycopg.OperationalError as e:
+        logger.error(f"Delete vote failed - database connection issue: {str(e)}")
+        raise
+    except psycopg.DatabaseError as e:
+        logger.error(f"Delete vote failed - database error: {str(e)}")
         raise
