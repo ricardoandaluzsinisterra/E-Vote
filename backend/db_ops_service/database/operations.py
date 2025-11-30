@@ -613,11 +613,15 @@ def delete_vote(cursor, user_id: int, poll_id: str) -> bool:
 
 def create_poll(cursor, title: str, description: str, created_by: int, expires_at, options: List[str]) -> Dict[str, Any]:
     """
-    Create a new poll with associated options using explicit transaction management.
+    Create a new poll with associated options using connection-level transaction management.
 
-    This function uses explicit BEGIN/COMMIT/ROLLBACK transaction control to ensure atomicity.
-    Both the poll creation and all option insertions are executed in a single
-    transaction - if any operation fails, all changes are rolled back.
+    This function performs multiple operations in a single transaction:
+    1. Insert a new poll record into the polls table
+    2. Insert all poll options into the poll_options table
+
+    Both the poll creation and all option insertions are executed atomically
+    using connection-level transaction context manager - if any operation fails,
+    all changes are automatically rolled back.
 
     Args:
         cursor: Database cursor for executing queries
@@ -638,77 +642,74 @@ def create_poll(cursor, title: str, description: str, created_by: int, expires_a
         ValueError: If options list is empty
 
     Thread Safety:
-        - Uses explicit transaction control for atomic operations
+        - Uses connection-level transaction() context manager for atomic operations
         - Safe for concurrent use as each request has its own cursor/connection
-        - Explicit rollback on any exception ensures data consistency
+        - Automatic rollback on any exception ensures data consistency
     """
     if not options:
         raise ValueError("Poll must have at least one option")
 
+    # Get connection from cursor for transaction management
+    conn = cursor.connection
+
     try:
-        # Begin explicit transaction
-        cursor.execute('BEGIN')
+        # Use connection-level transaction context manager
+        # This ensures automatic rollback on exception and commit on success
+        with conn.transaction():
+            # Insert poll
+            poll_query = """INSERT INTO polls (title, description, created_by, expires_at)
+                VALUES (%s, %s, %s, %s) RETURNING id, title, description, created_by, created_at, expires_at, is_active"""
+            cursor.execute(poll_query, (title, description, created_by, expires_at))
+            poll_row = cursor.fetchone()
 
-        # Insert poll
-        poll_query = """INSERT INTO polls (title, description, created_by, expires_at)
-            VALUES (%s, %s, %s, %s) RETURNING id, title, description, created_by, created_at, expires_at, is_active"""
-        cursor.execute(poll_query, (title, description, created_by, expires_at))
-        poll_row = cursor.fetchone()
+            poll_data = {
+                "id": str(poll_row[0]),
+                "title": poll_row[1],
+                "description": poll_row[2],
+                "created_by": poll_row[3],
+                "created_at": poll_row[4].isoformat() if poll_row[4] else None,
+                "expires_at": poll_row[5].isoformat() if poll_row[5] else None,
+                "is_active": poll_row[6],
+                "options": []
+            }
 
-        poll_data = {
-            "id": str(poll_row[0]),
-            "title": poll_row[1],
-            "description": poll_row[2],
-            "created_by": poll_row[3],
-            "created_at": poll_row[4].isoformat() if poll_row[4] else None,
-            "expires_at": poll_row[5].isoformat() if poll_row[5] else None,
-            "is_active": poll_row[6],
-            "options": []
-        }
+            # Insert poll options within the same transaction
+            option_query = """INSERT INTO poll_options (poll_id, option_text, display_order)
+                VALUES (%s, %s, %s) RETURNING id, poll_id, option_text, vote_count, display_order"""
 
-        # Insert poll options within the same transaction
-        option_query = """INSERT INTO poll_options (poll_id, option_text, display_order)
-            VALUES (%s, %s, %s) RETURNING id, poll_id, option_text, vote_count, display_order"""
+            for index, option_text in enumerate(options):
+                cursor.execute(option_query, (poll_data["id"], option_text, index))
+                option_row = cursor.fetchone()
+                poll_data["options"].append({
+                    "id": str(option_row[0]),
+                    "poll_id": str(option_row[1]),
+                    "option_text": option_row[2],
+                    "vote_count": option_row[3],
+                    "display_order": option_row[4]
+                })
 
-        for index, option_text in enumerate(options):
-            cursor.execute(option_query, (poll_data["id"], option_text, index))
-            option_row = cursor.fetchone()
-            poll_data["options"].append({
-                "id": str(option_row[0]),
-                "poll_id": str(option_row[1]),
-                "option_text": option_row[2],
-                "vote_count": option_row[3],
-                "display_order": option_row[4]
-            })
-
-        # Commit transaction on success
-        cursor.execute('COMMIT')
-        logger.info(f"Poll created successfully - id: {poll_data['id']}, title: {title}, options: {len(options)}")
-        return poll_data
+            # Transaction commits automatically when context manager exits successfully
+            logger.info(f"Poll created successfully - id: {poll_data['id']}, title: {title}, options: {len(options)}")
+            return poll_data
 
     except psycopg.IntegrityError as e:
-        # Rollback transaction on integrity constraint violation
-        cursor.execute('ROLLBACK')
+        # Transaction automatically rolled back by context manager
         logger.error(f"Poll creation failed - integrity constraint violation: {str(e)}")
         raise
     except psycopg.DataError as e:
-        # Rollback transaction on invalid data format
-        cursor.execute('ROLLBACK')
+        # Transaction automatically rolled back by context manager
         logger.error(f"Poll creation failed - invalid data format: {str(e)}")
         raise
     except psycopg.OperationalError as e:
-        # Rollback transaction on database connection issue
-        cursor.execute('ROLLBACK')
+        # Transaction automatically rolled back by context manager
         logger.error(f"Poll creation failed - database connection issue: {str(e)}")
         raise
     except psycopg.DatabaseError as e:
-        # Rollback transaction on general database error
-        cursor.execute('ROLLBACK')
+        # Transaction automatically rolled back by context manager
         logger.error(f"Poll creation failed - database error: {str(e)}")
         raise
     except Exception as e:
-        # Rollback transaction on any unexpected error
-        cursor.execute('ROLLBACK')
+        # Transaction automatically rolled back by context manager
         logger.error(f"Poll creation failed - unexpected error: {str(e)}")
         raise
 
