@@ -106,7 +106,7 @@ class DatabaseManager:
         
     def initialize_tables(self):
         """
-        Create the users and votes tables if they don't exist.
+        Create the users, polls, poll_options, and votes tables if they don't exist.
 
         Raises:
             RuntimeError: If cursor is not available (connect() not called)
@@ -126,17 +126,54 @@ class DatabaseManager:
         """)
 
         self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS polls (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                title VARCHAR(255) NOT NULL,
+                description TEXT,
+                created_by INTEGER NOT NULL,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                expires_at TIMESTAMP WITH TIME ZONE,
+                is_active BOOLEAN DEFAULT TRUE,
+                CONSTRAINT fk_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE,
+                CONSTRAINT check_expires_after_created CHECK (expires_at IS NULL OR expires_at > created_at)
+            );
+        """)
+
+        self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS poll_options (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                poll_id UUID NOT NULL,
+                option_text VARCHAR(500) NOT NULL,
+                vote_count INTEGER DEFAULT 0,
+                display_order INTEGER NOT NULL,
+                CONSTRAINT fk_poll FOREIGN KEY (poll_id) REFERENCES polls(id) ON DELETE CASCADE
+            );
+        """)
+
+        self.cursor.execute("""
             CREATE TABLE IF NOT EXISTS votes (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 user_id INTEGER NOT NULL,
-                poll_id INTEGER NOT NULL,
-                option_id INTEGER NOT NULL,
+                poll_id UUID NOT NULL,
+                option_id UUID NOT NULL,
                 voted_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
                 CONSTRAINT unique_user_poll UNIQUE (user_id, poll_id),
                 CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-                CONSTRAINT fk_poll FOREIGN KEY (poll_id) REFERENCES polls(id) ON DELETE CASCADE,
+                CONSTRAINT fk_poll_vote FOREIGN KEY (poll_id) REFERENCES polls(id) ON DELETE CASCADE,
                 CONSTRAINT fk_option FOREIGN KEY (option_id) REFERENCES poll_options(id) ON DELETE CASCADE
             );
+        """)
+
+        self.cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_polls_created_by ON polls(created_by);
+        """)
+
+        self.cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_polls_is_active ON polls(is_active);
+        """)
+
+        self.cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_poll_options_poll_id ON poll_options(poll_id);
         """)
 
         self.cursor.execute("""
