@@ -165,15 +165,18 @@ class DatabaseManager:
         """)
 
         self.cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_polls_created_by ON polls(created_by);
+            CREATE INDEX IF NOT EXISTS idx_polls_created_by_created_at
+            ON polls(created_by, created_at DESC);
         """)
 
         self.cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_polls_is_active ON polls(is_active);
+            CREATE INDEX IF NOT EXISTS idx_polls_is_active_created_at
+            ON polls(is_active, created_at DESC);
         """)
 
         self.cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_poll_options_poll_id ON poll_options(poll_id);
+            CREATE INDEX IF NOT EXISTS idx_poll_options_poll_id_display_order
+            ON poll_options(poll_id, display_order);
         """)
 
         self.cursor.execute("""
