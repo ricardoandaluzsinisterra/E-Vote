@@ -642,7 +642,7 @@ def create_poll(cursor, title: str, description: str, created_by: int, expires_a
         psycopg.DatabaseError: For general database errors
         ValueError: If options list is empty
     """
-    if not options or len(options) == 0:
+    if not options:
         raise ValueError("Poll must have at least one option")
 
     try:
