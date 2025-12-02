@@ -152,4 +152,28 @@ function Home() {
               style={{
                 marginTop: "1rem",
                 width: "100%",
-                background: "linear-gradient(180deg, var(--accent),
+                background: "linear-gradient(180deg, var(--accent), #e67030)",
+              }}
+            >
+              Send Verification Emails
+            </button>
+          )}
+
+          <button
+            className="btn"
+            onClick={logout}
+            style={{
+              marginTop: "1.5rem",
+              width: "100%",
+              background: "rgba(11, 37, 64, 0.05)",
+            }}
+          >
+            Logout
+          </button>
+        </div>
+      </section>
+    </main>
+  );
+}
+
+export default Home;
