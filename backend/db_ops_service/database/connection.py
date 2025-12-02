@@ -180,16 +180,7 @@ class DatabaseManager:
         """)
 
         self.cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_votes_user_id ON votes(user_id);
-        """)
-
-        self.cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_votes_poll_id ON votes(poll_id);
-        """)
-
-        self.cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_votes_poll_id_option_id
-            ON votes(poll_id, option_id);
         """)
 
 # FastAPI dependency for database access (internal to db_ops_service)
