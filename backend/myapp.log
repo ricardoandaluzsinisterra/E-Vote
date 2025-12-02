@@ -197,3 +197,117 @@ INFO:aiokafka.consumer.group_coordinator:Setting newly assigned partitions {Topi
 INFO:__main__:Kafka consumer started (bootstrap=kafka:9092, topics=['user.postgres.ops', 'user.redis.ops'], group=db_ops_group)
 INFO:db_ops_service.database.connection:Database connection successful to postgres:5432
 INFO:db_ops_service.database.connection:Redis connection successful to redis:6379 db=0
+INFO:database.connection:Database connection successful to postgres:5432
+INFO:database.connection:Redis connection successful to redis:6379 db=0
+INFO:__main__:Connected to Postgres/Redis via DatabaseManager
+INFO:__main__:Ensured events table exists
+INFO:__main__:Ensured users table exists
+INFO:aiokafka.consumer.subscription_state:Updating subscribed topics to: frozenset({'user.redis.ops', 'user.postgres.ops'})
+INFO:db_ops_service.database.connection:Database connection successful to postgres:5432
+INFO:db_ops_service.database.connection:Redis connection successful to redis:6379 db=0
+ERROR:aiokafka:Unable connect to "kafka:9092": [Errno -5] No address associated with hostname
+ERROR:asyncio:Unclosed AIOKafkaConsumer
+consumer: <aiokafka.consumer.consumer.AIOKafkaConsumer object at 0x7460aa255010>
+ERROR:aiokafka:Unable connect to "kafka:9092": [Errno -5] No address associated with hostname
+WARNING:auth_service.main:Failed to start Kafka producer: KafkaConnectionError: Unable to bootstrap from [('kafka', 9092, <AddressFamily.AF_UNSPEC: 0>)]
+INFO:database.connection:Database connection successful to postgres:5432
+INFO:database.connection:Redis connection successful to redis:6379 db=0
+INFO:__main__:Connected to Postgres/Redis via DatabaseManager
+INFO:__main__:Ensured events table exists
+INFO:__main__:Ensured users table exists
+INFO:aiokafka.consumer.subscription_state:Updating subscribed topics to: frozenset({'user.redis.ops', 'user.postgres.ops'})
+ERROR:aiokafka:Unable connect to "kafka:9092": [Errno -5] No address associated with hostname
+ERROR:asyncio:Unclosed AIOKafkaConsumer
+consumer: <aiokafka.consumer.consumer.AIOKafkaConsumer object at 0x7ce8587dc910>
+INFO:database.connection:Database connection successful to postgres:5432
+INFO:database.connection:Redis connection successful to redis:6379 db=0
+INFO:__main__:Connected to Postgres/Redis via DatabaseManager
+INFO:__main__:Ensured events table exists
+INFO:__main__:Ensured users table exists
+INFO:aiokafka.consumer.subscription_state:Updating subscribed topics to: frozenset({'user.redis.ops', 'user.postgres.ops'})
+ERROR:aiokafka:Unable connect to "kafka:9092": [Errno -5] No address associated with hostname
+ERROR:asyncio:Unclosed AIOKafkaConsumer
+consumer: <aiokafka.consumer.consumer.AIOKafkaConsumer object at 0x799eae4ed010>
+INFO:database.connection:Database connection successful to postgres:5432
+INFO:database.connection:Redis connection successful to redis:6379 db=0
+INFO:__main__:Connected to Postgres/Redis via DatabaseManager
+INFO:__main__:Ensured events table exists
+INFO:__main__:Ensured users table exists
+INFO:aiokafka.consumer.subscription_state:Updating subscribed topics to: frozenset({'user.redis.ops', 'user.postgres.ops'})
+ERROR:aiokafka:Unable connect to "kafka:9092": [Errno -5] No address associated with hostname
+ERROR:asyncio:Unclosed AIOKafkaConsumer
+consumer: <aiokafka.consumer.consumer.AIOKafkaConsumer object at 0x7e8de91d6910>
+INFO:database.connection:Database connection successful to postgres:5432
+INFO:database.connection:Redis connection successful to redis:6379 db=0
+INFO:__main__:Connected to Postgres/Redis via DatabaseManager
+INFO:__main__:Ensured events table exists
+INFO:__main__:Ensured users table exists
+INFO:aiokafka.consumer.subscription_state:Updating subscribed topics to: frozenset({'user.redis.ops', 'user.postgres.ops'})
+ERROR:aiokafka:Unable connect to "kafka:9092": [Errno -5] No address associated with hostname
+ERROR:asyncio:Unclosed AIOKafkaConsumer
+consumer: <aiokafka.consumer.consumer.AIOKafkaConsumer object at 0x72e6625ed950>
+INFO:database.connection:Database connection successful to postgres:5432
+INFO:database.connection:Redis connection successful to redis:6379 db=0
+INFO:__main__:Connected to Postgres/Redis via DatabaseManager
+INFO:__main__:Ensured events table exists
+INFO:__main__:Ensured users table exists
+INFO:aiokafka.consumer.subscription_state:Updating subscribed topics to: frozenset({'user.postgres.ops', 'user.redis.ops'})
+ERROR:aiokafka:Unable connect to "kafka:9092": [Errno -5] No address associated with hostname
+ERROR:asyncio:Unclosed AIOKafkaConsumer
+consumer: <aiokafka.consumer.consumer.AIOKafkaConsumer object at 0x730e98781790>
+INFO:database.connection:Database connection successful to postgres:5432
+INFO:database.connection:Redis connection successful to redis:6379 db=0
+INFO:__main__:Connected to Postgres/Redis via DatabaseManager
+INFO:__main__:Ensured events table exists
+INFO:__main__:Ensured users table exists
+INFO:aiokafka.consumer.subscription_state:Updating subscribed topics to: frozenset({'user.postgres.ops', 'user.redis.ops'})
+ERROR:aiokafka:Unable connect to "kafka:9092": [Errno -5] No address associated with hostname
+ERROR:asyncio:Unclosed AIOKafkaConsumer
+consumer: <aiokafka.consumer.consumer.AIOKafkaConsumer object at 0x7f11cd925950>
+INFO:database.connection:Database connection successful to postgres:5432
+INFO:database.connection:Redis connection successful to redis:6379 db=0
+INFO:__main__:Connected to Postgres/Redis via DatabaseManager
+INFO:__main__:Ensured events table exists
+INFO:__main__:Ensured users table exists
+INFO:aiokafka.consumer.subscription_state:Updating subscribed topics to: frozenset({'user.postgres.ops', 'user.redis.ops'})
+ERROR:aiokafka:Unable connect to "kafka:9092": [Errno 111] Connect call failed ('172.18.0.3', 9092)
+ERROR:asyncio:Unclosed AIOKafkaConsumer
+consumer: <aiokafka.consumer.consumer.AIOKafkaConsumer object at 0x73195f20e910>
+INFO:database.connection:Database connection successful to postgres:5432
+INFO:database.connection:Redis connection successful to redis:6379 db=0
+INFO:__main__:Connected to Postgres/Redis via DatabaseManager
+INFO:__main__:Ensured events table exists
+INFO:__main__:Ensured users table exists
+INFO:aiokafka.consumer.subscription_state:Updating subscribed topics to: frozenset({'user.redis.ops', 'user.postgres.ops'})
+ERROR:aiokafka:Unable connect to "kafka:9092": [Errno -5] No address associated with hostname
+ERROR:asyncio:Unclosed AIOKafkaConsumer
+consumer: <aiokafka.consumer.consumer.AIOKafkaConsumer object at 0x736648fed8d0>
+INFO:auth_service.main:Kafka producer stopped
+INFO:database.connection:Database connection successful to postgres:5432
+INFO:database.connection:Redis connection successful to redis:6379 db=0
+INFO:__main__:Connected to Postgres/Redis via DatabaseManager
+INFO:__main__:Ensured events table exists
+INFO:__main__:Ensured users table exists
+INFO:aiokafka.consumer.subscription_state:Updating subscribed topics to: frozenset({'user.postgres.ops', 'user.redis.ops'})
+WARNING:aiokafka.cluster:Topic user.redis.ops is not available during auto-create initialization
+WARNING:aiokafka.cluster:Topic user.postgres.ops is not available during auto-create initialization
+WARNING:aiokafka.cluster:Topic user.redis.ops is not available during auto-create initialization
+WARNING:aiokafka.cluster:Topic user.postgres.ops is not available during auto-create initialization
+ERROR:aiokafka.consumer.group_coordinator:Group Coordinator Request failed: [Error 15] CoordinatorNotAvailableError
+ERROR:aiokafka.consumer.group_coordinator:Group Coordinator Request failed: [Error 15] CoordinatorNotAvailableError
+ERROR:aiokafka.consumer.group_coordinator:Group Coordinator Request failed: [Error 15] CoordinatorNotAvailableError
+ERROR:aiokafka.consumer.group_coordinator:Group Coordinator Request failed: [Error 15] CoordinatorNotAvailableError
+ERROR:aiokafka.consumer.group_coordinator:Group Coordinator Request failed: [Error 15] CoordinatorNotAvailableError
+ERROR:aiokafka.consumer.group_coordinator:Group Coordinator Request failed: [Error 15] CoordinatorNotAvailableError
+ERROR:aiokafka.consumer.group_coordinator:Group Coordinator Request failed: [Error 15] CoordinatorNotAvailableError
+INFO:aiokafka.consumer.group_coordinator:Discovered coordinator 1 for group db_ops_group
+INFO:aiokafka.consumer.group_coordinator:Revoking previously assigned partitions set() for group db_ops_group
+INFO:aiokafka.consumer.group_coordinator:(Re-)joining group db_ops_group
+INFO:db_ops_service.database.connection:Database connection successful to postgres:5432
+INFO:db_ops_service.database.connection:Redis connection successful to redis:6379 db=0
+INFO:auth_service.main:Kafka producer started (bootstrap=kafka:9092)
+INFO:aiokafka.consumer.group_coordinator:Joined group 'db_ops_group' (generation 1) with member_id aiokafka-0.8.0-63fec748-2653-445a-99f2-76984631c2f1
+INFO:aiokafka.consumer.group_coordinator:Elected group leader -- performing partition assignments using roundrobin
+INFO:aiokafka.consumer.group_coordinator:Successfully synced group db_ops_group with generation 1
+INFO:aiokafka.consumer.group_coordinator:Setting newly assigned partitions {TopicPartition(topic='user.postgres.ops', partition=0), TopicPartition(topic='user.redis.ops', partition=0)} for group db_ops_group
+INFO:__main__:Kafka consumer started (bootstrap=kafka:9092, topics=['user.postgres.ops', 'user.redis.ops'], group=db_ops_group)
