@@ -1,5 +1,5 @@
 from typing import Optional, Dict, Any, List
-from datetime import datetime
+from datetime import datetime, timezone
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -60,7 +60,7 @@ class PollCreate(BaseModel):
     @classmethod
     def validate_expires_at(cls, v: Optional[datetime]) -> Optional[datetime]:
         """Ensure expiration date is in the future if provided."""
-        if v is not None and v <= datetime.now():
+        if v is not None and v <= datetime.now(timezone.utc):
             raise ValueError("Expiration date must be in the future")
         return v
 
@@ -215,13 +215,13 @@ class PollWithOptions:
         ]
 
         return PollResponse(
-            id=self.poll.poll_id,
-            title=self.poll.title,
-            description=self.poll.description,
-            created_by=self.poll.created_by,
-            created_at=self.poll.created_at.isoformat() if self.poll.created_at else datetime.now().isoformat(),
-            expires_at=self.poll.expires_at.isoformat() if self.poll.expires_at else None,
-            is_active=self.poll.is_active,
-            options=poll_options,
-            total_votes=self.get_total_votes()
-        )
+        id=self.poll.poll_id,
+        title=self.poll.title,
+        description=self.poll.description,
+        created_by=self.poll.created_by,
+        created_at=self.poll.created_at.isoformat() if self.poll.created_at else datetime.now(timezone.utc).isoformat(),
+        expires_at=self.poll.expires_at.isoformat() if self.poll.expires_at else None,
+        is_active=self.poll.is_active,
+        options=poll_options,
+        total_votes=self.get_total_votes()
+    )
