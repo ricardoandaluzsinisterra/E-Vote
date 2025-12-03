@@ -149,10 +149,20 @@ class Poll:
         created_at = poll_data.get('created_at')
         if created_at and isinstance(created_at, str):
             created_at = datetime.fromisoformat(created_at)
+            # Ensure timezone-aware (UTC)
+            if created_at.tzinfo is None:
+                created_at = created_at.replace(tzinfo=timezone.utc)
+            else:
+                created_at = created_at.astimezone(timezone.utc)
 
         expires_at = poll_data.get('expires_at')
         if expires_at and isinstance(expires_at, str):
             expires_at = datetime.fromisoformat(expires_at)
+            # Ensure timezone-aware (UTC)
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+            else:
+                expires_at = expires_at.astimezone(timezone.utc)
 
         return cls(
             poll_id=poll_id,
@@ -180,13 +190,28 @@ class Poll:
             Expects row fields in the order: id, title, description, created_by,
             created_at, expires_at, is_active
         """
+        # Handle timezone conversion for datetime fields
+        created_at = row[4]
+        if created_at and isinstance(created_at, datetime):
+            if created_at.tzinfo is None:
+                created_at = created_at.replace(tzinfo=timezone.utc)
+            else:
+                created_at = created_at.astimezone(timezone.utc)
+
+        expires_at = row[5]
+        if expires_at and isinstance(expires_at, datetime):
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+            else:
+                expires_at = expires_at.astimezone(timezone.utc)
+
         return cls(
             poll_id=row[0],
             title=row[1],
             description=row[2],
             created_by=row[3],
-            created_at=row[4],
-            expires_at=row[5],
+            created_at=created_at,
+            expires_at=expires_at,
             is_active=row[6]
         )
 
@@ -206,12 +231,20 @@ class Poll:
             poll_id will be assigned by database during insertion
             Options are handled separately in database operations
         """
+        # Handle timezone conversion for expires_at
+        expires_at = poll_create.expires_at
+        if expires_at and isinstance(expires_at, datetime):
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+            else:
+                expires_at = expires_at.astimezone(timezone.utc)
+
         return cls(
             poll_id="",  # Will be assigned by database
             title=poll_create.title,
             description=poll_create.description,
             created_by=created_by,
             created_at=datetime.now(timezone.utc),
-            expires_at=poll_create.expires_at,
+            expires_at=expires_at,
             is_active=True
         )
