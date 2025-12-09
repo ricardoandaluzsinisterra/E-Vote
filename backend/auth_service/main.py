@@ -433,7 +433,13 @@ async def verify_otp(request: OTPVerificationRequest) -> dict:
                     detail="Invalid or expired OTP"
                 )
             # Response body not needed - success is indicated by 200 status
-            
+            # Check for success in the result, if the API returns such a field
+            if not result.get("success", True):
+                logger.warning("OTP verification failed: %s", body)
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=result.get("detail", "Invalid or expired OTP")
+                )
     except urllib.error.HTTPError as e:
         body = None
         try:
