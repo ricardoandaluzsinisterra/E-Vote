@@ -133,3 +133,43 @@ INFO:db_ops_service.main:Voter account created: hafsamoin12@yahoo.com
 INFO:auth_service.main:Voter registered successfully: hafsamoin12@yahoo.com
 INFO:auth_service.main:Kafka producer stopped
 INFO:auth_service.main:Kafka producer started (bootstrap=kafka:9092)
+INFO:auth_service.main:Kafka producer stopped
+INFO:db_ops_service.database.connection:Database connection successful to postgres:5432
+INFO:db_ops_service.database.connection:Redis connection successful to redis:6379 db=0
+INFO:auth_service.main:Kafka producer started (bootstrap=kafka:9092)
+INFO:auth_service.main:Kafka producer stopped
+INFO:db_ops_service.database.connection:Database connection successful to postgres:5432
+INFO:db_ops_service.database.connection:Redis connection successful to redis:6379 db=0
+INFO:auth_service.main:Kafka producer started (bootstrap=kafka:9092)
+INFO:db_ops_service.main:OTP rate limit check passed for test-rate-limit@example.com (type=admin, remaining=2)
+INFO:db_ops_service.main:OTP stored for test-rate-limit@example.com (type=admin, expires in 600s)
+INFO:auth_service.main:✅ Email sent successfully to test-rate-limit@example.com via smtp.gmail.com:587
+INFO:auth_service.main:✅ OTP email sent successfully via SMTP to test-rate-limit@example.com
+INFO:auth_service.main:OTP sent to test-rate-limit@example.com (type=admin)
+INFO:db_ops_service.main:OTP rate limit check passed for test-rate-limit@example.com (type=admin, remaining=1)
+INFO:db_ops_service.main:OTP stored for test-rate-limit@example.com (type=admin, expires in 600s)
+INFO:auth_service.main:✅ Email sent successfully to test-rate-limit@example.com via smtp.gmail.com:587
+INFO:auth_service.main:✅ OTP email sent successfully via SMTP to test-rate-limit@example.com
+INFO:auth_service.main:OTP sent to test-rate-limit@example.com (type=admin)
+INFO:db_ops_service.main:OTP rate limit check passed for test-rate-limit@example.com (type=admin, remaining=0)
+INFO:db_ops_service.main:OTP stored for test-rate-limit@example.com (type=admin, expires in 600s)
+INFO:auth_service.main:✅ Email sent successfully to test-rate-limit@example.com via smtp.gmail.com:587
+INFO:auth_service.main:✅ OTP email sent successfully via SMTP to test-rate-limit@example.com
+INFO:auth_service.main:OTP sent to test-rate-limit@example.com (type=admin)
+WARNING:db_ops_service.main:OTP rate limit exceeded for test-rate-limit@example.com (type=admin)
+INFO:db_ops_service.main:OTP rate limit check passed for hafsamoin14@gmail.com (type=admin, remaining=2)
+INFO:db_ops_service.main:OTP stored for hafsamoin14@gmail.com (type=admin, expires in 600s)
+INFO:auth_service.main:✅ Email sent successfully to hafsamoin14@gmail.com via smtp.gmail.com:587
+INFO:auth_service.main:✅ OTP email sent successfully via SMTP to hafsamoin14@gmail.com
+INFO:auth_service.main:OTP sent to hafsamoin14@gmail.com (type=admin)
+INFO:db_ops_service.main:OTP rate limit check passed for hafsamoin14@gmail.com (type=admin, remaining=1)
+INFO:db_ops_service.main:OTP stored for hafsamoin14@gmail.com (type=admin, expires in 600s)
+INFO:auth_service.main:✅ Email sent successfully to hafsamoin14@gmail.com via smtp.gmail.com:587
+INFO:auth_service.main:✅ OTP email sent successfully via SMTP to hafsamoin14@gmail.com
+INFO:auth_service.main:OTP sent to hafsamoin14@gmail.com (type=admin)
+INFO:db_ops_service.main:OTP rate limit check passed for hafsamoin14@gmail.com (type=admin, remaining=0)
+INFO:db_ops_service.main:OTP stored for hafsamoin14@gmail.com (type=admin, expires in 600s)
+INFO:auth_service.main:✅ Email sent successfully to hafsamoin14@gmail.com via smtp.gmail.com:587
+INFO:auth_service.main:✅ OTP email sent successfully via SMTP to hafsamoin14@gmail.com
+INFO:auth_service.main:OTP sent to hafsamoin14@gmail.com (type=admin)
+WARNING:db_ops_service.main:OTP rate limit exceeded for hafsamoin14@gmail.com (type=admin)

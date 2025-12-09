@@ -2,6 +2,7 @@ import asyncio
 import os
 import json
 import smtplib
+import time
 import uuid
 import logging
 import urllib.request
@@ -50,6 +51,9 @@ DB_OPS_URL = os.getenv("DB_OPS_URL", "http://db_ops:8001")
 KAFKA_BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP", "kafka:9092")
 POST_USER_TOPIC = os.getenv("KAFKA_POSTGRES_TOPIC", "user.postgres.ops")
 
+# Only log sensitive tokens (OTP, registration tokens) when DEBUG mode is enabled
+DEBUG_MODE = os.getenv("DEBUG", "false").lower() in ("true", "1", "yes")
+
 @app.on_event("startup")
 async def startup():
     global producer
@@ -90,7 +94,7 @@ async def register_user(user_data: UserRegistrationRequest) -> RegistrationSucce
     # Create a lightweight user object and generate verification token locally
     new_user = User.from_user_registration_request(user_data)
     new_user.password_hash = hash_password(user_data.password)
-    new_user.verification_token = f"{uuid.uuid4()}-{int(__import__('time').time())}"
+    new_user.verification_token = f"{uuid.uuid4()}-{int(time.time())}"
 
     # Check if user already exists to avoid duplicate insert errors
     try:
@@ -260,6 +264,43 @@ async def send_otp(request: OTPRequest) -> OTPResponse:
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="user_type must be 'voter' or 'admin'"
         )
+    
+    # Rate limiting: max 3 OTP requests per email per hour
+    try:
+        rate_limit_url = f"{DB_OPS_URL.rstrip('/')}/redis/check-otp-rate-limit"
+        rate_payload = {
+            "email": email,
+            "user_type": user_type,
+            "max_requests": 3,
+            "window_seconds": 3600  # 1 hour
+        }
+        req_data = json.dumps(rate_payload).encode("utf-8")
+        req = urllib.request.Request(
+            rate_limit_url,
+            data=req_data,
+            method="POST",
+            headers={"Content-Type": "application/json"}
+        )
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            pass  # If we get here, rate limit check passed
+    except urllib.error.HTTPError as e:
+        if getattr(e, 'code', None) == 429:
+            # Rate limit exceeded
+            try:
+                error_body = e.read().decode()
+                error_data = json.loads(error_body)
+                detail = error_data.get("detail", "Too many OTP requests. Please try again later.")
+            except Exception:
+                detail = "Too many OTP requests. Please try again later."
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=detail
+            )
+        # For other errors, log and continue (fail open)
+        logger.warning("Rate limit check failed with code %s, allowing request", getattr(e, 'code', None))
+    except Exception as e:
+        # If rate limiting service unavailable, allow the request (fail open)
+        logger.warning("Rate limit check failed: %s, allowing request", e)
     
     # For voters, check if user exists and is verified
     # For admins, this is part of registration flow
@@ -521,8 +562,9 @@ E-Vote Team
     
     # Check if SMTP is configured
     if not smtp_host or not smtp_port:
-        logger.warning("SMTP not configured - OTP will only be logged")
-        logger.info("[DEV MODE] OTP for %s (%s): %s", email, user_type, otp)
+        logger.warning("SMTP not configured - OTP will only be logged in debug mode")
+        if DEBUG_MODE:
+            logger.info("[DEV MODE] OTP for %s (%s): %s", email, user_type, otp)
         return
     
     try:
@@ -535,7 +577,8 @@ E-Vote Team
         logger.info("✅ OTP email sent successfully via SMTP to %s", email)
     except Exception as e:
         logger.error("❌ SMTP send failed: %s", e)
-        logger.info("[FALLBACK] OTP for %s (%s): %s", email, user_type, otp)
+        if DEBUG_MODE:
+            logger.info("[FALLBACK] OTP for %s (%s): %s", email, user_type, otp)
         raise  # Re-raise so caller knows email failed
 
 def _smtp_send_otp(smtp_host, smtp_port, smtp_user, smtp_pass, email_from, to_email, subject, body_text, body_html):
@@ -727,7 +770,7 @@ async def upload_voters(payload: dict):
     for voter in voters:
         try:
             # Generate one-time registration token
-            token = f"{uuid.uuid4()}-voter-{int(__import__('time').time())}"
+            token = f"{uuid.uuid4()}-voter-{int(time.time())}"
             
             # Store voter record in database
             store_url = f"{DB_OPS_URL.rstrip('/')}/db/store-voter-record"
@@ -977,9 +1020,10 @@ E-Vote Election Commission
     email_from = os.getenv("EMAIL_FROM", "noreply@evote.example.com")
     
     if not smtp_host or not smtp_port:
-        logger.warning("SMTP not configured - registration link logged only")
-        logger.info("[DEV MODE] Registration link for %s: %s", email, register_url)
-        logger.info("[DEV MODE] Token: %s", token)
+        logger.warning("SMTP not configured - registration link logged only in debug mode")
+        if DEBUG_MODE:
+            logger.info("[DEV MODE] Registration link for %s: %s", email, register_url)
+            logger.info("[DEV MODE] Token: %s", token)
         return
     
     try:
@@ -991,6 +1035,7 @@ E-Vote Election Commission
         logger.info("✅ Registration email sent to %s", email)
     except Exception as e:
         logger.error("❌ Failed to send registration email: %s", e)
-        logger.info("[FALLBACK] Registration link for %s: %s", email, register_url)
-        logger.info("[FALLBACK] Token: %s", token)
+        if DEBUG_MODE:
+            logger.info("[FALLBACK] Registration link for %s: %s", email, register_url)
+            logger.info("[FALLBACK] Token: %s", token)
         raise

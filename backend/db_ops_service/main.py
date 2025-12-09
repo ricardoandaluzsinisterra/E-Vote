@@ -172,6 +172,67 @@ async def api_update_password(req: UpdatePasswordRequest, db: DatabaseManager = 
     except Exception:
         pass
 
+
+@app.post("/redis/check-otp-rate-limit")
+async def check_otp_rate_limit(payload: dict, db: DatabaseManager = Depends(get_database)):
+    """
+    Check and enforce rate limiting for OTP requests.
+    Limits to max_requests per window (default: 3 requests per hour).
+    Returns whether the request is allowed and increments the counter.
+    """
+    email = payload.get("email")
+    user_type = payload.get("user_type", "voter")
+    max_requests = payload.get("max_requests", 3)
+    window_seconds = payload.get("window_seconds", 3600)  # 1 hour default
+    
+    if not email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="email required"
+        )
+    
+    try:
+        redis_client = db.redis_client
+        if not redis_client:
+            # If Redis unavailable, allow the request (fail open)
+            logger.warning("Redis unavailable for rate limiting, allowing request")
+            return {"allowed": True, "remaining": max_requests - 1}
+        
+        rate_key = f"otp:rate:{user_type}:{email}"
+        
+        # Get current count
+        current_count = redis_client.get(rate_key)
+        current_count = int(current_count) if current_count else 0
+        
+        if current_count >= max_requests:
+            # Get TTL to tell user when they can try again
+            ttl = redis_client.ttl(rate_key)
+            logger.warning("OTP rate limit exceeded for %s (type=%s)", email, user_type)
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=f"Too many OTP requests. Please try again in {ttl // 60} minutes."
+            )
+        
+        # Increment counter
+        pipe = redis_client.pipeline()
+        pipe.incr(rate_key)
+        if current_count == 0:
+            # Set expiry only on first request
+            pipe.expire(rate_key, window_seconds)
+        pipe.execute()
+        
+        remaining = max_requests - (current_count + 1)
+        logger.info("OTP rate limit check passed for %s (type=%s, remaining=%d)", email, user_type, remaining)
+        return {"allowed": True, "remaining": remaining}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Failed to check OTP rate limit: %s", e)
+        # Fail open - allow the request if rate limiting fails
+        return {"allowed": True, "remaining": 0}
+
+
 @app.post("/redis/store-otp")
 async def redis_store_otp(payload: dict, db: DatabaseManager = Depends(get_database)):
     """
