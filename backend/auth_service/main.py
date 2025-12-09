@@ -2,6 +2,7 @@ import asyncio
 import os
 import json
 import smtplib
+import time
 import uuid
 import logging
 import urllib.request
@@ -90,7 +91,7 @@ async def register_user(user_data: UserRegistrationRequest) -> RegistrationSucce
     # Create a lightweight user object and generate verification token locally
     new_user = User.from_user_registration_request(user_data)
     new_user.password_hash = hash_password(user_data.password)
-    new_user.verification_token = f"{uuid.uuid4()}-{int(__import__('time').time())}"
+    new_user.verification_token = f"{uuid.uuid4()}-{int(time.time())}"
 
     # Check if user already exists to avoid duplicate insert errors
     try:
@@ -727,7 +728,7 @@ async def upload_voters(payload: dict):
     for voter in voters:
         try:
             # Generate one-time registration token
-            token = f"{uuid.uuid4()}-voter-{int(__import__('time').time())}"
+            token = f"{uuid.uuid4()}-voter-{int(time.time())}"
             
             # Store voter record in database
             store_url = f"{DB_OPS_URL.rstrip('/')}/db/store-voter-record"
