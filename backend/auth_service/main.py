@@ -8,21 +8,19 @@ import logging
 import urllib.request
 import urllib.error
 import urllib.parse
-import random
-import string
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from aiokafka import AIOKafkaProducer
 
 from auth_service.auth.password_utils import *
 from auth_service.auth.jwt_handler import generate_tokens
+from auth_service.auth.otp_utils import generate_otp
 from models.User import User
 from models.auth_models import *
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 OTP_EXPIRY_SECONDS = 600  
-MAX_OTP_ATTEMPTS = 5
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(filename='myapp.log', level=logging.INFO)
@@ -145,6 +143,8 @@ async def register_user(user_data: UserRegistrationRequest) -> RegistrationSucce
         if getattr(e, 'code', None) == 409:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User with this email already exists")
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="User persistence failed")
+    except HTTPException:
+        raise
     except Exception as e:
         logger.exception("Failed to call db_ops_service create: %s", e)
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="User persistence unavailable")
@@ -338,7 +338,7 @@ async def send_otp(request: OTPRequest) -> OTPResponse:
             )
     
     # Generate 6-digit OTP
-    otp = ''.join(random.choices(string.digits, k=6))
+    otp = generate_otp()
     
     # Store OTP in Redis via db_ops_service
     try:
@@ -432,8 +432,7 @@ async def verify_otp(request: OTPVerificationRequest) -> dict:
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Invalid or expired OTP"
                 )
-            body = resp.read().decode("utf-8")
-            result = json.loads(body)
+            # Response body not needed - success is indicated by 200 status
             
     except urllib.error.HTTPError as e:
         body = None
@@ -558,7 +557,7 @@ E-Vote Team
     smtp_port = int(os.getenv("SMTP_PORT", 587)) if os.getenv("SMTP_PORT") else None
     smtp_user = os.getenv("SMTP_USER")
     smtp_pass = os.getenv("SMTP_PASS")
-    email_from = os.getenv("EMAIL_FROM", "uvote.verify@gmail.com")
+    email_from = os.getenv("EMAIL_FROM", "noreply@evote.example.com")
     
     # Check if SMTP is configured
     if not smtp_host or not smtp_port:
@@ -894,10 +893,14 @@ async def register_voter(request: VoterRegistrationRequest):
         )
     
     # Validate voter data matches stored record
+    def normalize_name(name: str) -> str:
+        """Normalize name by lowercasing and collapsing whitespace."""
+        return ' '.join(name.lower().split())
+    
     if (
         stored_voter["voter_id"] != request.voter_id or
         stored_voter["phone_number"] != request.phone_number or
-        stored_voter["full_name"].lower() != request.full_name.lower()
+        normalize_name(stored_voter["full_name"]) != normalize_name(request.full_name)
     ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

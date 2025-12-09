@@ -382,8 +382,8 @@ async def mark_user_verified(payload: dict, db: DatabaseManager = Depends(get_da
             if redis_client:
                 cache_key = f"user:email:{email}"
                 redis_client.delete(cache_key)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.exception("Failed to invalidate Redis cache for user: %s", email)
         
         logger.info("User marked as verified: %s", email)
         return {"status": "verified", "email": email}
@@ -514,7 +514,7 @@ async def verify_voter_token(payload: dict, db: DatabaseManager = Depends(get_da
         if not row:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Invalid token or email"
+                detail="Registration token not found or does not match the provided email address"
             )
         
         if row[4]:  # token_used

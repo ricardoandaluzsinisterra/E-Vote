@@ -1,8 +1,6 @@
 import random
 import string
 import logging
-from typing import Optional
-from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 

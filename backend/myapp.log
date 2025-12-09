@@ -173,3 +173,12 @@ INFO:auth_service.main:✅ Email sent successfully to hafsamoin14@gmail.com via 
 INFO:auth_service.main:✅ OTP email sent successfully via SMTP to hafsamoin14@gmail.com
 INFO:auth_service.main:OTP sent to hafsamoin14@gmail.com (type=admin)
 WARNING:db_ops_service.main:OTP rate limit exceeded for hafsamoin14@gmail.com (type=admin)
+INFO:db_ops_service.database.connection:Database connection successful to postgres:5432
+INFO:db_ops_service.database.connection:Redis connection successful to redis:6379 db=0
+INFO:auth_service.main:Kafka producer started (bootstrap=kafka:9092)
+WARNING:db_ops_service.main:OTP rate limit exceeded for hafsamoin14@gmail.com (type=admin)
+INFO:db_ops_service.main:OTP rate limit check passed for hafsamoin12@yahoo.com (type=voter, remaining=2)
+INFO:db_ops_service.main:OTP stored for hafsamoin12@yahoo.com (type=voter, expires in 600s)
+INFO:auth_service.main:✅ Email sent successfully to hafsamoin12@yahoo.com via smtp.gmail.com:587
+INFO:auth_service.main:✅ OTP email sent successfully via SMTP to hafsamoin12@yahoo.com
+INFO:auth_service.main:OTP sent to hafsamoin12@yahoo.com (type=voter)
