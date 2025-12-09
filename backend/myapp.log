@@ -1,54 +1,10 @@
-INFO:database.connection:Database connection successful
-INFO:database.connection:Database connection successful
-INFO:database.connection:Database connection successful
-INFO:database.connection:Database connection successful
-INFO:database.connection:Database connection successful
-INFO:database.connection:Database connection successful
-INFO:database.connection:Database connection successful
-INFO:database.connection:Database connection successful
-INFO:database.connection:Database connection successful
-INFO:database.connection:Database connection successful
-INFO:database.connection:Database connection successful
-INFO:database.connection:Database connection successful to postgres:5432
-WARNING:auth.jwt_handler:JWT_SECRET not set in environment; using a temporary insecure fallback (not for production).
-INFO:database.connection:Database connection successful to postgres:5432
-WARNING:auth.jwt_handler:JWT_SECRET not set in environment; using a temporary insecure fallback (not for production).
-INFO:database.connection:Database connection successful to postgres:5432
-INFO:e_vote:Database initialized on startup
-WARNING:auth.jwt_handler:JWT_SECRET not set in environment; using a temporary insecure fallback (not for production).
-INFO:database.connection:Database connection successful to postgres:5432
-INFO:e_vote:Database initialized on startup
-WARNING:auth.jwt_handler:JWT_SECRET not set in environment; using a temporary insecure fallback (not for production).
-INFO:database.connection:Database connection successful to postgres:5432
-WARNING:auth.jwt_handler:JWT_SECRET not set in environment; using a temporary insecure fallback (not for production).
-INFO:database.connection:Database connection successful to postgres:5432
-WARNING:auth.jwt_handler:JWT_SECRET not set in environment; using a temporary insecure fallback (not for production).
-INFO:database.connection:Database connection successful to postgres:5432
-INFO:database.connection:Database connection successful to postgres:5432
-INFO:database.connection:Database connection successful to postgres:5432
-INFO:database.connection:Database connection successful to postgres:5432
-WARNING:auth.jwt_handler:JWT_SECRET not set in environment; using a temporary insecure fallback (not for production).
-INFO:database.connection:Database connection successful to postgres:5432
-INFO:database.connection:Redis connection successful to redis:6379 db=0
-ERROR:aiokafka:Unable connect to "kafka:9092": [Errno 111] Connection refused
-WARNING:auth_service.main:Failed to start Kafka producer: KafkaConnectionError: Unable to bootstrap from [('kafka', 9092, <AddressFamily.AF_UNSPEC: 0>)]
-INFO:auth_service.main:Kafka producer stopped
-WARNING:auth.jwt_handler:JWT_SECRET not set in environment; using a temporary insecure fallback (not for production).
-INFO:database.connection:Database connection successful to postgres:5432
-INFO:database.connection:Redis connection successful to redis:6379 db=0
-ERROR:aiokafka:Unable connect to "kafka:9092": [Errno 111] Connection refused
-WARNING:auth_service.main:Failed to start Kafka producer: KafkaConnectionError: Unable to bootstrap from [('kafka', 9092, <AddressFamily.AF_UNSPEC: 0>)]
-INFO:auth_service.main:Kafka producer stopped
-WARNING:auth.jwt_handler:JWT_SECRET not set in environment; using a temporary insecure fallback (not for production).
-INFO:database.connection:Database connection successful to postgres:5432
-INFO:database.connection:Redis connection successful to redis:6379 db=0
-ERROR:aiokafka:Unable connect to "kafka:9092": [Errno 111] Connection refused
-WARNING:auth_service.main:Failed to start Kafka producer: KafkaConnectionError: Unable to bootstrap from [('kafka', 9092, <AddressFamily.AF_UNSPEC: 0>)]
-INFO:auth_service.main:Kafka producer stopped
-WARNING:auth.jwt_handler:JWT_SECRET not set in environment; using a temporary insecure fallback (not for production).
-INFO:database.connection:Database connection successful to postgres:5432
-INFO:database.connection:Redis connection successful to redis:6379 db=0
-INFO:auth_service.main:Kafka producer started (bootstrap=kafka:9092)
+
+INFO:db_ops_service.main:OTP stored for hafsamoin14@gmail.com (type=admin, expires in 600s)
+ERROR:auth_service.main:❌ Failed to send OTP email: timed out
+ERROR:auth_service.main:❌ SMTP send failed: timed out
+INFO:auth_service.main:[FALLBACK] OTP for hafsamoin14@gmail.com (admin): 855736
+WARNING:auth_service.main:Failed to send OTP email for hafsamoin14@gmail.com: timed out
+INFO:auth_service.main:OTP sent to hafsamoin14@gmail.com (type=admin)
 INFO:auth_service.main:Kafka producer stopped
 INFO:database.connection:Database connection successful to postgres:5432
 INFO:database.connection:Redis connection successful to redis:6379 db=0
@@ -56,232 +12,35 @@ INFO:__main__:Connected to Postgres/Redis via DatabaseManager
 INFO:__main__:Ensured events table exists
 INFO:__main__:Ensured users table exists
 INFO:aiokafka.consumer.subscription_state:Updating subscribed topics to: frozenset({'user.redis.ops', 'user.postgres.ops'})
-INFO:database.connection:Database connection successful to postgres:5432
-INFO:database.connection:Redis connection successful to redis:6379 db=0
 WARNING:aiokafka.cluster:Topic user.redis.ops is not available during auto-create initialization
 WARNING:aiokafka.cluster:Topic user.postgres.ops is not available during auto-create initialization
 WARNING:aiokafka.cluster:Topic user.redis.ops is not available during auto-create initialization
 WARNING:aiokafka.cluster:Topic user.postgres.ops is not available during auto-create initialization
-WARNING:aiokafka.cluster:Topic user.postgres.ops is not available during auto-create initialization
-WARNING:aiokafka.cluster:Topic user.postgres.ops is not available during auto-create initialization
+INFO:db_ops_service.database.connection:Database connection successful to postgres:5432
+INFO:db_ops_service.database.connection:Redis connection successful to redis:6379 db=0
+ERROR:aiokafka.consumer.group_coordinator:Group Coordinator Request failed: [Error 15] CoordinatorNotAvailableError
+ERROR:aiokafka.consumer.group_coordinator:Group Coordinator Request failed: [Error 15] CoordinatorNotAvailableError
+ERROR:aiokafka.consumer.group_coordinator:Group Coordinator Request failed: [Error 15] CoordinatorNotAvailableError
+ERROR:aiokafka.consumer.group_coordinator:Group Coordinator Request failed: [Error 15] CoordinatorNotAvailableError
 INFO:aiokafka.consumer.group_coordinator:Discovered coordinator 1 for group db_ops_group
 INFO:aiokafka.consumer.group_coordinator:Revoking previously assigned partitions set() for group db_ops_group
 INFO:aiokafka.consumer.group_coordinator:(Re-)joining group db_ops_group
-INFO:aiokafka.consumer.group_coordinator:Joined group 'db_ops_group' (generation 3) with member_id aiokafka-0.8.0-45e14616-31ac-4e91-9a0c-77fa365bff58
+INFO:auth_service.main:Kafka producer started (bootstrap=kafka:9092)
+INFO:aiokafka.consumer.group_coordinator:Joined group 'db_ops_group' (generation 1) with member_id aiokafka-0.8.0-52e3fb30-84cb-423e-ae33-1129bbd66cc1
 INFO:aiokafka.consumer.group_coordinator:Elected group leader -- performing partition assignments using roundrobin
-INFO:aiokafka.consumer.group_coordinator:Successfully synced group db_ops_group with generation 3
-INFO:aiokafka.consumer.group_coordinator:Setting newly assigned partitions {TopicPartition(topic='user.postgres.ops', partition=0), TopicPartition(topic='user.redis.ops', partition=0)} for group db_ops_group
-INFO:__main__:Kafka consumer started (bootstrap=kafka:9092, topics=['user.postgres.ops', 'user.redis.ops'], group=db_ops_group)
-INFO:database.connection:Database connection successful to postgres:5432
-INFO:database.connection:Redis connection successful to redis:6379 db=0
-INFO:__main__:Connected to Postgres/Redis via DatabaseManager
-INFO:__main__:Ensured events table exists
-INFO:__main__:Ensured users table exists
-INFO:aiokafka.consumer.subscription_state:Updating subscribed topics to: frozenset({'user.redis.ops', 'user.postgres.ops'})
-INFO:aiokafka.consumer.group_coordinator:Discovered coordinator 1 for group db_ops_group
-INFO:aiokafka.consumer.group_coordinator:Revoking previously assigned partitions set() for group db_ops_group
-INFO:aiokafka.consumer.group_coordinator:(Re-)joining group db_ops_group
-INFO:aiokafka.consumer.group_coordinator:Joined group 'db_ops_group' (generation 4) with member_id aiokafka-0.8.0-fcd88a83-7dd1-4cb9-8cbe-2069908607f3
-INFO:aiokafka.consumer.group_coordinator:Elected group leader -- performing partition assignments using roundrobin
-INFO:aiokafka.consumer.group_coordinator:Successfully synced group db_ops_group with generation 4
+INFO:aiokafka.consumer.group_coordinator:Successfully synced group db_ops_group with generation 1
 INFO:aiokafka.consumer.group_coordinator:Setting newly assigned partitions {TopicPartition(topic='user.redis.ops', partition=0), TopicPartition(topic='user.postgres.ops', partition=0)} for group db_ops_group
 INFO:__main__:Kafka consumer started (bootstrap=kafka:9092, topics=['user.postgres.ops', 'user.redis.ops'], group=db_ops_group)
-INFO:database.connection:Database connection successful to postgres:5432
-INFO:database.connection:Redis connection successful to redis:6379 db=0
-INFO:__main__:Connected to Postgres/Redis via DatabaseManager
-INFO:__main__:Ensured events table exists
-INFO:__main__:Ensured users table exists
-INFO:aiokafka.consumer.subscription_state:Updating subscribed topics to: frozenset({'user.postgres.ops', 'user.redis.ops'})
-INFO:aiokafka.consumer.group_coordinator:Discovered coordinator 1 for group db_ops_group
-INFO:aiokafka.consumer.group_coordinator:Revoking previously assigned partitions set() for group db_ops_group
-INFO:aiokafka.consumer.group_coordinator:(Re-)joining group db_ops_group
-INFO:db_ops_service.database.connection:Database connection successful to postgres:5432
-INFO:db_ops_service.database.connection:Redis connection successful to redis:6379 db=0
-INFO:aiokafka.consumer.group_coordinator:Joined group 'db_ops_group' (generation 5) with member_id aiokafka-0.8.0-98db7461-882e-40f6-9743-ddf81e767b27
-INFO:aiokafka.consumer.group_coordinator:Elected group leader -- performing partition assignments using roundrobin
-INFO:aiokafka.consumer.group_coordinator:Successfully synced group db_ops_group with generation 5
-INFO:aiokafka.consumer.group_coordinator:Setting newly assigned partitions {TopicPartition(topic='user.postgres.ops', partition=0), TopicPartition(topic='user.redis.ops', partition=0)} for group db_ops_group
-INFO:__main__:Kafka consumer started (bootstrap=kafka:9092, topics=['user.postgres.ops', 'user.redis.ops'], group=db_ops_group)
-INFO:auth_service.main:Kafka producer started (bootstrap=kafka:9092)
-INFO:auth_service.main:Published user.create event for email=ci-user@example.com
-INFO:__main__:Handling event: {'op': 'create', 'resource': 'user', 'event': 'user.registered', 'payload': {'user_id': '2b2fb880-2963-4710-8396-62737f740250', 'email': 'ci-user@example.com', 'password_hash': '$argon2id$v=19$m=65536,t=3,p=4$3rOHDJGDa7DJz71D3Qrz6g$uPDKIjx4iQlaFpC9gZ49cLHRSphy8lj+9bOqptx0xa4', 'verification_token': '14ea02ca-89f2-42db-acc9-9e8380690478-1764214419'}, 'meta': {'source': 'auth-service', 'topic': 'user.postgres.ops'}}
-INFO:__main__:User already exists in Postgres: ci-user@example.com
-INFO:__main__:Existing user id=2
-INFO:auth_service.main:Kafka producer stopped
-INFO:database.connection:Database connection successful to postgres:5432
-INFO:database.connection:Redis connection successful to redis:6379 db=0
-INFO:__main__:Connected to Postgres/Redis via DatabaseManager
-INFO:__main__:Ensured events table exists
-INFO:__main__:Ensured users table exists
-INFO:aiokafka.consumer.subscription_state:Updating subscribed topics to: frozenset({'user.redis.ops', 'user.postgres.ops'})
-INFO:aiokafka.consumer.group_coordinator:Discovered coordinator 1 for group db_ops_group
-INFO:aiokafka.consumer.group_coordinator:Revoking previously assigned partitions set() for group db_ops_group
-INFO:aiokafka.consumer.group_coordinator:(Re-)joining group db_ops_group
-INFO:db_ops_service.database.connection:Database connection successful to postgres:5432
-INFO:db_ops_service.database.connection:Redis connection successful to redis:6379 db=0
-INFO:aiokafka.consumer.group_coordinator:Joined group 'db_ops_group' (generation 6) with member_id aiokafka-0.8.0-9bda8523-7f92-4a05-b1b7-e72975c424eb
-INFO:aiokafka.consumer.group_coordinator:Elected group leader -- performing partition assignments using roundrobin
-INFO:aiokafka.consumer.group_coordinator:Successfully synced group db_ops_group with generation 6
-INFO:aiokafka.consumer.group_coordinator:Setting newly assigned partitions {TopicPartition(topic='user.redis.ops', partition=0), TopicPartition(topic='user.postgres.ops', partition=0)} for group db_ops_group
-INFO:__main__:Kafka consumer started (bootstrap=kafka:9092, topics=['user.postgres.ops', 'user.redis.ops'], group=db_ops_group)
-INFO:database.connection:Database connection successful to postgres:5432
-INFO:database.connection:Redis connection successful to redis:6379 db=0
-INFO:__main__:Connected to Postgres/Redis via DatabaseManager
-INFO:__main__:Ensured events table exists
-INFO:__main__:Ensured users table exists
-INFO:aiokafka.consumer.subscription_state:Updating subscribed topics to: frozenset({'user.redis.ops', 'user.postgres.ops'})
-INFO:aiokafka.consumer.group_coordinator:Discovered coordinator 1 for group db_ops_group
-INFO:aiokafka.consumer.group_coordinator:Revoking previously assigned partitions set() for group db_ops_group
-INFO:aiokafka.consumer.group_coordinator:(Re-)joining group db_ops_group
-INFO:db_ops_service.database.connection:Database connection successful to postgres:5432
-INFO:db_ops_service.database.connection:Redis connection successful to redis:6379 db=0
-INFO:aiokafka.consumer.group_coordinator:Joined group 'db_ops_group' (generation 7) with member_id aiokafka-0.8.0-1e12f855-dced-453a-bfd9-66543c1695c9
-INFO:aiokafka.consumer.group_coordinator:Elected group leader -- performing partition assignments using roundrobin
-INFO:aiokafka.consumer.group_coordinator:Successfully synced group db_ops_group with generation 7
-INFO:aiokafka.consumer.group_coordinator:Setting newly assigned partitions {TopicPartition(topic='user.redis.ops', partition=0), TopicPartition(topic='user.postgres.ops', partition=0)} for group db_ops_group
-INFO:__main__:Kafka consumer started (bootstrap=kafka:9092, topics=['user.postgres.ops', 'user.redis.ops'], group=db_ops_group)
-INFO:auth_service.main:Kafka producer started (bootstrap=kafka:9092)
-ERROR:auth_service.main:Failed to call db_ops_service for pre-create lookup: 
-Traceback (most recent call last):
-  File "/app/auth_service/main.py", line 93, in register_user
-    raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User with this email already exists")
-fastapi.exceptions.HTTPException
-ERROR:auth_service.main:Failed to call db_ops_service for pre-create lookup: 
-Traceback (most recent call last):
-  File "/app/auth_service/main.py", line 93, in register_user
-    raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User with this email already exists")
-fastapi.exceptions.HTTPException
-INFO:auth_service.main:Kafka producer stopped
-INFO:database.connection:Database connection successful to postgres:5432
-INFO:database.connection:Redis connection successful to redis:6379 db=0
-INFO:__main__:Connected to Postgres/Redis via DatabaseManager
-INFO:__main__:Ensured events table exists
-INFO:__main__:Ensured users table exists
-INFO:aiokafka.consumer.subscription_state:Updating subscribed topics to: frozenset({'user.redis.ops', 'user.postgres.ops'})
-INFO:aiokafka.consumer.group_coordinator:Discovered coordinator 1 for group db_ops_group
-INFO:aiokafka.consumer.group_coordinator:Revoking previously assigned partitions set() for group db_ops_group
-INFO:aiokafka.consumer.group_coordinator:(Re-)joining group db_ops_group
-INFO:db_ops_service.database.connection:Database connection successful to postgres:5432
-INFO:db_ops_service.database.connection:Redis connection successful to redis:6379 db=0
-INFO:aiokafka.consumer.group_coordinator:Joined group 'db_ops_group' (generation 8) with member_id aiokafka-0.8.0-5d4f8bab-f0c5-4521-846f-0b39d089f032
-INFO:aiokafka.consumer.group_coordinator:Elected group leader -- performing partition assignments using roundrobin
-INFO:aiokafka.consumer.group_coordinator:Successfully synced group db_ops_group with generation 8
-INFO:aiokafka.consumer.group_coordinator:Setting newly assigned partitions {TopicPartition(topic='user.redis.ops', partition=0), TopicPartition(topic='user.postgres.ops', partition=0)} for group db_ops_group
-INFO:__main__:Kafka consumer started (bootstrap=kafka:9092, topics=['user.postgres.ops', 'user.redis.ops'], group=db_ops_group)
-INFO:auth_service.main:Kafka producer started (bootstrap=kafka:9092)
-ERROR:auth_service.main:Failed to call db_ops_service for pre-create lookup: 
-Traceback (most recent call last):
-  File "/app/auth_service/main.py", line 93, in register_user
-    raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User with this email already exists")
-fastapi.exceptions.HTTPException
-INFO:auth_service.main:Kafka producer stopped
-INFO:db_ops_service.database.connection:Database connection successful to postgres:5432
-INFO:db_ops_service.database.connection:Redis connection successful to redis:6379 db=0
-INFO:auth_service.main:Kafka producer started (bootstrap=kafka:9092)
-INFO:auth_service.main:Kafka producer stopped
-INFO:database.connection:Database connection successful to postgres:5432
-INFO:database.connection:Redis connection successful to redis:6379 db=0
-INFO:__main__:Connected to Postgres/Redis via DatabaseManager
-INFO:__main__:Ensured events table exists
-INFO:__main__:Ensured users table exists
-INFO:aiokafka.consumer.subscription_state:Updating subscribed topics to: frozenset({'user.postgres.ops', 'user.redis.ops'})
-INFO:aiokafka.consumer.group_coordinator:Discovered coordinator 1 for group db_ops_group
-INFO:aiokafka.consumer.group_coordinator:Revoking previously assigned partitions set() for group db_ops_group
-INFO:aiokafka.consumer.group_coordinator:(Re-)joining group db_ops_group
-INFO:db_ops_service.database.connection:Database connection successful to postgres:5432
-INFO:db_ops_service.database.connection:Redis connection successful to redis:6379 db=0
-INFO:aiokafka.consumer.group_coordinator:Joined group 'db_ops_group' (generation 9) with member_id aiokafka-0.8.0-5b940856-2f77-40cf-af4a-2eafe9c805e0
-INFO:aiokafka.consumer.group_coordinator:Elected group leader -- performing partition assignments using roundrobin
-INFO:aiokafka.consumer.group_coordinator:Successfully synced group db_ops_group with generation 9
-INFO:aiokafka.consumer.group_coordinator:Setting newly assigned partitions {TopicPartition(topic='user.postgres.ops', partition=0), TopicPartition(topic='user.redis.ops', partition=0)} for group db_ops_group
-INFO:__main__:Kafka consumer started (bootstrap=kafka:9092, topics=['user.postgres.ops', 'user.redis.ops'], group=db_ops_group)
-INFO:db_ops_service.database.connection:Database connection successful to postgres:5432
-INFO:db_ops_service.database.connection:Redis connection successful to redis:6379 db=0
-INFO:database.connection:Database connection successful to postgres:5432
-INFO:database.connection:Redis connection successful to redis:6379 db=0
-INFO:__main__:Connected to Postgres/Redis via DatabaseManager
-INFO:__main__:Ensured events table exists
-INFO:__main__:Ensured users table exists
-INFO:aiokafka.consumer.subscription_state:Updating subscribed topics to: frozenset({'user.redis.ops', 'user.postgres.ops'})
-INFO:db_ops_service.database.connection:Database connection successful to postgres:5432
-INFO:db_ops_service.database.connection:Redis connection successful to redis:6379 db=0
-ERROR:aiokafka:Unable connect to "kafka:9092": [Errno -5] No address associated with hostname
-ERROR:asyncio:Unclosed AIOKafkaConsumer
-consumer: <aiokafka.consumer.consumer.AIOKafkaConsumer object at 0x7460aa255010>
-ERROR:aiokafka:Unable connect to "kafka:9092": [Errno -5] No address associated with hostname
-WARNING:auth_service.main:Failed to start Kafka producer: KafkaConnectionError: Unable to bootstrap from [('kafka', 9092, <AddressFamily.AF_UNSPEC: 0>)]
-INFO:database.connection:Database connection successful to postgres:5432
-INFO:database.connection:Redis connection successful to redis:6379 db=0
-INFO:__main__:Connected to Postgres/Redis via DatabaseManager
-INFO:__main__:Ensured events table exists
-INFO:__main__:Ensured users table exists
-INFO:aiokafka.consumer.subscription_state:Updating subscribed topics to: frozenset({'user.redis.ops', 'user.postgres.ops'})
-ERROR:aiokafka:Unable connect to "kafka:9092": [Errno -5] No address associated with hostname
-ERROR:asyncio:Unclosed AIOKafkaConsumer
-consumer: <aiokafka.consumer.consumer.AIOKafkaConsumer object at 0x7ce8587dc910>
-INFO:database.connection:Database connection successful to postgres:5432
-INFO:database.connection:Redis connection successful to redis:6379 db=0
-INFO:__main__:Connected to Postgres/Redis via DatabaseManager
-INFO:__main__:Ensured events table exists
-INFO:__main__:Ensured users table exists
-INFO:aiokafka.consumer.subscription_state:Updating subscribed topics to: frozenset({'user.redis.ops', 'user.postgres.ops'})
-ERROR:aiokafka:Unable connect to "kafka:9092": [Errno -5] No address associated with hostname
-ERROR:asyncio:Unclosed AIOKafkaConsumer
-consumer: <aiokafka.consumer.consumer.AIOKafkaConsumer object at 0x799eae4ed010>
-INFO:database.connection:Database connection successful to postgres:5432
-INFO:database.connection:Redis connection successful to redis:6379 db=0
-INFO:__main__:Connected to Postgres/Redis via DatabaseManager
-INFO:__main__:Ensured events table exists
-INFO:__main__:Ensured users table exists
-INFO:aiokafka.consumer.subscription_state:Updating subscribed topics to: frozenset({'user.redis.ops', 'user.postgres.ops'})
-ERROR:aiokafka:Unable connect to "kafka:9092": [Errno -5] No address associated with hostname
-ERROR:asyncio:Unclosed AIOKafkaConsumer
-consumer: <aiokafka.consumer.consumer.AIOKafkaConsumer object at 0x7e8de91d6910>
-INFO:database.connection:Database connection successful to postgres:5432
-INFO:database.connection:Redis connection successful to redis:6379 db=0
-INFO:__main__:Connected to Postgres/Redis via DatabaseManager
-INFO:__main__:Ensured events table exists
-INFO:__main__:Ensured users table exists
-INFO:aiokafka.consumer.subscription_state:Updating subscribed topics to: frozenset({'user.redis.ops', 'user.postgres.ops'})
-ERROR:aiokafka:Unable connect to "kafka:9092": [Errno -5] No address associated with hostname
-ERROR:asyncio:Unclosed AIOKafkaConsumer
-consumer: <aiokafka.consumer.consumer.AIOKafkaConsumer object at 0x72e6625ed950>
-INFO:database.connection:Database connection successful to postgres:5432
-INFO:database.connection:Redis connection successful to redis:6379 db=0
-INFO:__main__:Connected to Postgres/Redis via DatabaseManager
-INFO:__main__:Ensured events table exists
-INFO:__main__:Ensured users table exists
-INFO:aiokafka.consumer.subscription_state:Updating subscribed topics to: frozenset({'user.postgres.ops', 'user.redis.ops'})
-ERROR:aiokafka:Unable connect to "kafka:9092": [Errno -5] No address associated with hostname
-ERROR:asyncio:Unclosed AIOKafkaConsumer
-consumer: <aiokafka.consumer.consumer.AIOKafkaConsumer object at 0x730e98781790>
-INFO:database.connection:Database connection successful to postgres:5432
-INFO:database.connection:Redis connection successful to redis:6379 db=0
-INFO:__main__:Connected to Postgres/Redis via DatabaseManager
-INFO:__main__:Ensured events table exists
-INFO:__main__:Ensured users table exists
-INFO:aiokafka.consumer.subscription_state:Updating subscribed topics to: frozenset({'user.postgres.ops', 'user.redis.ops'})
-ERROR:aiokafka:Unable connect to "kafka:9092": [Errno -5] No address associated with hostname
-ERROR:asyncio:Unclosed AIOKafkaConsumer
-consumer: <aiokafka.consumer.consumer.AIOKafkaConsumer object at 0x7f11cd925950>
-INFO:database.connection:Database connection successful to postgres:5432
-INFO:database.connection:Redis connection successful to redis:6379 db=0
-INFO:__main__:Connected to Postgres/Redis via DatabaseManager
-INFO:__main__:Ensured events table exists
-INFO:__main__:Ensured users table exists
-INFO:aiokafka.consumer.subscription_state:Updating subscribed topics to: frozenset({'user.postgres.ops', 'user.redis.ops'})
-ERROR:aiokafka:Unable connect to "kafka:9092": [Errno 111] Connect call failed ('172.18.0.3', 9092)
-ERROR:asyncio:Unclosed AIOKafkaConsumer
-consumer: <aiokafka.consumer.consumer.AIOKafkaConsumer object at 0x73195f20e910>
-INFO:database.connection:Database connection successful to postgres:5432
-INFO:database.connection:Redis connection successful to redis:6379 db=0
-INFO:__main__:Connected to Postgres/Redis via DatabaseManager
-INFO:__main__:Ensured events table exists
-INFO:__main__:Ensured users table exists
-INFO:aiokafka.consumer.subscription_state:Updating subscribed topics to: frozenset({'user.redis.ops', 'user.postgres.ops'})
-ERROR:aiokafka:Unable connect to "kafka:9092": [Errno -5] No address associated with hostname
-ERROR:asyncio:Unclosed AIOKafkaConsumer
-consumer: <aiokafka.consumer.consumer.AIOKafkaConsumer object at 0x736648fed8d0>
+INFO:db_ops_service.main:OTP stored for hafsamoin14@gmail.com (type=admin, expires in 600s)
+INFO:auth_service.main:✅ Email sent successfully to hafsamoin14@gmail.com via smtp.gmail.com:587
+INFO:auth_service.main:✅ OTP email sent successfully via SMTP to hafsamoin14@gmail.com
+INFO:auth_service.main:OTP sent to hafsamoin14@gmail.com (type=admin)
+INFO:db_ops_service.main:OTP stored for hafsamoin14@gmail.com (type=admin, expires in 600s)
+INFO:auth_service.main:✅ Email sent successfully to hafsamoin14@gmail.com via smtp.gmail.com:587
+INFO:auth_service.main:✅ OTP email sent successfully via SMTP to hafsamoin14@gmail.com
+INFO:auth_service.main:OTP sent to hafsamoin14@gmail.com (type=admin)
+INFO:db_ops_service.main:OTP verified successfully for hafsamoin14@gmail.com (type=admin)
+INFO:auth_service.main:OTP verified successfully for hafsamoin14@gmail.com (type=admin)
 INFO:auth_service.main:Kafka producer stopped
 INFO:database.connection:Database connection successful to postgres:5432
 INFO:database.connection:Redis connection successful to redis:6379 db=0
@@ -294,8 +53,8 @@ WARNING:aiokafka.cluster:Topic user.postgres.ops is not available during auto-cr
 WARNING:aiokafka.cluster:Topic user.redis.ops is not available during auto-create initialization
 WARNING:aiokafka.cluster:Topic user.postgres.ops is not available during auto-create initialization
 ERROR:aiokafka.consumer.group_coordinator:Group Coordinator Request failed: [Error 15] CoordinatorNotAvailableError
-ERROR:aiokafka.consumer.group_coordinator:Group Coordinator Request failed: [Error 15] CoordinatorNotAvailableError
-ERROR:aiokafka.consumer.group_coordinator:Group Coordinator Request failed: [Error 15] CoordinatorNotAvailableError
+INFO:db_ops_service.database.connection:Database connection successful to postgres:5432
+INFO:db_ops_service.database.connection:Redis connection successful to redis:6379 db=0
 ERROR:aiokafka.consumer.group_coordinator:Group Coordinator Request failed: [Error 15] CoordinatorNotAvailableError
 ERROR:aiokafka.consumer.group_coordinator:Group Coordinator Request failed: [Error 15] CoordinatorNotAvailableError
 ERROR:aiokafka.consumer.group_coordinator:Group Coordinator Request failed: [Error 15] CoordinatorNotAvailableError
@@ -303,11 +62,74 @@ ERROR:aiokafka.consumer.group_coordinator:Group Coordinator Request failed: [Err
 INFO:aiokafka.consumer.group_coordinator:Discovered coordinator 1 for group db_ops_group
 INFO:aiokafka.consumer.group_coordinator:Revoking previously assigned partitions set() for group db_ops_group
 INFO:aiokafka.consumer.group_coordinator:(Re-)joining group db_ops_group
-INFO:db_ops_service.database.connection:Database connection successful to postgres:5432
-INFO:db_ops_service.database.connection:Redis connection successful to redis:6379 db=0
 INFO:auth_service.main:Kafka producer started (bootstrap=kafka:9092)
-INFO:aiokafka.consumer.group_coordinator:Joined group 'db_ops_group' (generation 1) with member_id aiokafka-0.8.0-63fec748-2653-445a-99f2-76984631c2f1
+INFO:aiokafka.consumer.group_coordinator:Joined group 'db_ops_group' (generation 1) with member_id aiokafka-0.8.0-09bdafdb-09cb-40df-9b4b-9a17db6160b7
 INFO:aiokafka.consumer.group_coordinator:Elected group leader -- performing partition assignments using roundrobin
 INFO:aiokafka.consumer.group_coordinator:Successfully synced group db_ops_group with generation 1
 INFO:aiokafka.consumer.group_coordinator:Setting newly assigned partitions {TopicPartition(topic='user.postgres.ops', partition=0), TopicPartition(topic='user.redis.ops', partition=0)} for group db_ops_group
 INFO:__main__:Kafka consumer started (bootstrap=kafka:9092, topics=['user.postgres.ops', 'user.redis.ops'], group=db_ops_group)
+ERROR:auth_service.main:Failed to call db_ops_service for pre-create lookup: 
+Traceback (most recent call last):
+  File "/app/auth_service/main.py", line 102, in register_user
+    raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User with this email already exists")
+fastapi.exceptions.HTTPException
+ERROR:auth_service.main:Failed to call db_ops_service for pre-create lookup: 
+Traceback (most recent call last):
+  File "/app/auth_service/main.py", line 102, in register_user
+    raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User with this email already exists")
+fastapi.exceptions.HTTPException
+ERROR:auth_service.main:Failed to call db_ops_service for pre-create lookup: 
+Traceback (most recent call last):
+  File "/app/auth_service/main.py", line 102, in register_user
+    raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User with this email already exists")
+fastapi.exceptions.HTTPException
+INFO:auth_service.main:Kafka producer stopped
+INFO:auth_service.main:Kafka producer started (bootstrap=kafka:9092)
+INFO:db_ops_service.main:OTP stored for hafsamoin14@gmail.com (type=admin, expires in 600s)
+INFO:auth_service.main:✅ Email sent successfully to hafsamoin14@gmail.com via smtp.gmail.com:587
+INFO:auth_service.main:✅ OTP email sent successfully via SMTP to hafsamoin14@gmail.com
+INFO:auth_service.main:OTP sent to hafsamoin14@gmail.com (type=admin)
+INFO:db_ops_service.main:OTP verified successfully for hafsamoin14@gmail.com (type=admin)
+INFO:db_ops_service.main:User marked as verified: hafsamoin14@gmail.com
+INFO:auth_service.main:Admin account verified and activated: hafsamoin14@gmail.com
+INFO:db_ops_service.main:OTP stored for hafsamoin14@gmail.com (type=admin, expires in 600s)
+INFO:auth_service.main:✅ Email sent successfully to hafsamoin14@gmail.com via smtp.gmail.com:587
+INFO:auth_service.main:✅ OTP email sent successfully via SMTP to hafsamoin14@gmail.com
+INFO:auth_service.main:OTP sent to hafsamoin14@gmail.com (type=admin)
+INFO:db_ops_service.main:OTP verified successfully for hafsamoin14@gmail.com (type=admin)
+INFO:db_ops_service.main:User marked as verified: hafsamoin14@gmail.com
+INFO:auth_service.main:Admin account verified and activated: hafsamoin14@gmail.com
+INFO:db_ops_service.main:Candidate stored: Alice Smith (id=1)
+INFO:db_ops_service.main:Candidate stored: Bob Jones (id=2)
+INFO:auth_service.main:Candidate upload complete: 2 uploaded, 0 failed
+INFO:db_ops_service.main:Voter record stored: voter1@example.com
+INFO:auth_service.main:✅ Email sent successfully to voter1@example.com via smtp.gmail.com:587
+INFO:auth_service.main:✅ Registration email sent to voter1@example.com
+INFO:auth_service.main:Registration email sent to voter1@example.com
+INFO:db_ops_service.main:Voter record stored: voter2@example.com
+INFO:auth_service.main:✅ Email sent successfully to voter2@example.com via smtp.gmail.com:587
+INFO:auth_service.main:✅ Registration email sent to voter2@example.com
+INFO:auth_service.main:Registration email sent to voter2@example.com
+INFO:auth_service.main:Voter upload complete: 2 uploaded, 0 failed
+INFO:db_ops_service.main:Voter record stored: hafsamoin14@gmail.com
+INFO:auth_service.main:✅ Email sent successfully to hafsamoin14@gmail.com via smtp.gmail.com:587
+INFO:auth_service.main:✅ Registration email sent to hafsamoin14@gmail.com
+INFO:auth_service.main:Registration email sent to hafsamoin14@gmail.com
+INFO:auth_service.main:Voter upload complete: 1 uploaded, 0 failed
+INFO:db_ops_service.main:Voter record stored: hafsamoin12@yahoo.com
+INFO:auth_service.main:✅ Email sent successfully to hafsamoin12@yahoo.com via smtp.gmail.com:587
+INFO:auth_service.main:✅ Registration email sent to hafsamoin12@yahoo.com
+INFO:auth_service.main:Registration email sent to hafsamoin12@yahoo.com
+INFO:db_ops_service.main:Voter record stored: harenemo1520@gmail.com
+INFO:auth_service.main:✅ Email sent successfully to harenemo1520@gmail.com via smtp.gmail.com:587
+INFO:auth_service.main:✅ Registration email sent to harenemo1520@gmail.com
+INFO:auth_service.main:Registration email sent to harenemo1520@gmail.com
+INFO:db_ops_service.main:Voter record stored: hafsamoin65@gmail.com
+INFO:auth_service.main:✅ Email sent successfully to hafsamoin65@gmail.com via smtp.gmail.com:587
+INFO:auth_service.main:✅ Registration email sent to hafsamoin65@gmail.com
+INFO:auth_service.main:Registration email sent to hafsamoin65@gmail.com
+INFO:auth_service.main:Voter upload complete: 3 uploaded, 0 failed
+INFO:db_ops_service.main:Voter account created: hafsamoin12@yahoo.com
+INFO:auth_service.main:Voter registered successfully: hafsamoin12@yahoo.com
+INFO:auth_service.main:Kafka producer stopped
+INFO:auth_service.main:Kafka producer started (bootstrap=kafka:9092)
