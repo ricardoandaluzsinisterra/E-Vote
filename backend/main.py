@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.middleware import require_auth
 from backend.routes import poll_router
+from backend.routes.vote_routes import router as vote_router
 from backend.db_ops_service.database.connection import DatabaseManager
 
 logger = logging.getLogger(__name__)
@@ -43,6 +44,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(poll_router)
+app.include_router(vote_router)
 
 SERVICE_ROLE = "backend"
 AUTH_SERVICE_URL = os.getenv("AUTH_SERVICE_URL", "http://auth-service:8000")
