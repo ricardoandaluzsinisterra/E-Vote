@@ -851,22 +851,14 @@ async def register_voter(request: VoterRegistrationRequest):
         )
     
     # Validate voter data matches stored record
-    if stored_voter["voter_id"] != request.voter_id:
+    if (
+        stored_voter["voter_id"] != request.voter_id or
+        stored_voter["phone_number"] != request.phone_number or
+        stored_voter["full_name"].lower() != request.full_name.lower()
+    ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Voter ID does not match our records"
-        )
-    
-    if stored_voter["phone_number"] != request.phone_number:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Phone number does not match our records"
-        )
-    
-    if stored_voter["full_name"].lower() != request.full_name.lower():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Full name does not match our records"
+            detail="Voter information does not match our records"
         )
     
     # Create voter account
