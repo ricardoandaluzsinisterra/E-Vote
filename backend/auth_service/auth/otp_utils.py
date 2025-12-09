@@ -1,4 +1,4 @@
-import random
+import secrets
 import string
 import logging
 
@@ -6,7 +6,7 @@ logger = logging.getLogger(__name__)
 
 def generate_otp(length: int = 6) -> str:
     """
-    Generate a random numeric OTP code.
+    Generate a cryptographically secure random numeric OTP code.
     
     Args:
         length: Length of OTP (default 6 digits)
@@ -14,7 +14,7 @@ def generate_otp(length: int = 6) -> str:
     Returns:
         str: Numeric OTP code
     """
-    return ''.join(random.choices(string.digits, k=length))
+    return ''.join(secrets.choice(string.digits) for _ in range(length))
 
 def create_otp_key(email: str, user_type: str) -> str:
     """

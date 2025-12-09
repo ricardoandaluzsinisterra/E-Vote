@@ -182,3 +182,45 @@ INFO:db_ops_service.main:OTP stored for hafsamoin12@yahoo.com (type=voter, expir
 INFO:auth_service.main:✅ Email sent successfully to hafsamoin12@yahoo.com via smtp.gmail.com:587
 INFO:auth_service.main:✅ OTP email sent successfully via SMTP to hafsamoin12@yahoo.com
 INFO:auth_service.main:OTP sent to hafsamoin12@yahoo.com (type=voter)
+INFO:auth_service.main:Kafka producer stopped
+INFO:db_ops_service.database.connection:Database connection successful to postgres:5432
+INFO:db_ops_service.database.connection:Redis connection successful to redis:6379 db=0
+INFO:auth_service.main:Kafka producer started (bootstrap=kafka:9092)
+INFO:db_ops_service.main:OTP rate limit check passed for testverify@example.com (type=admin, remaining=2)
+INFO:db_ops_service.main:OTP stored for testverify@example.com (type=admin, expires in 600s)
+INFO:auth_service.main:✅ Email sent successfully to testverify@example.com via smtp.gmail.com:587
+INFO:auth_service.main:✅ OTP email sent successfully via SMTP to testverify@example.com
+INFO:auth_service.main:OTP sent to testverify@example.com (type=admin)
+WARNING:auth_service.main:OTP verify HTTPError 400: {"detail":"Invalid OTP. 4 attempts remaining."}
+INFO:auth_service.main:Kafka producer stopped
+INFO:db_ops_service.database.connection:Database connection successful to postgres:5432
+INFO:db_ops_service.database.connection:Redis connection successful to redis:6379 db=0
+INFO:auth_service.main:Kafka producer started (bootstrap=kafka:9092)
+INFO:db_ops_service.main:OTP rate limit check passed for testsecure@example.com (type=admin, remaining=2)
+INFO:db_ops_service.main:OTP stored for testsecure@example.com (type=admin, expires in 600s)
+INFO:auth_service.main:✅ Email sent successfully to testsecure@example.com via smtp.gmail.com:587
+INFO:auth_service.main:✅ OTP email sent successfully via SMTP to testsecure@example.com
+INFO:auth_service.main:OTP sent to testsecure@example.com (type=admin)
+INFO:auth_service.main:Kafka producer stopped
+INFO:db_ops_service.database.connection:Database connection successful to postgres:5432
+INFO:db_ops_service.database.connection:Redis connection successful to redis:6379 db=0
+INFO:auth_service.main:Kafka producer started (bootstrap=kafka:9092)
+INFO:db_ops_service.main:OTP rate limit check passed for hafsamoin14@gmail.com (type=admin, remaining=2)
+INFO:db_ops_service.main:OTP stored for hafsamoin14@gmail.com (type=admin, expires in 600s)
+INFO:auth_service.main:✅ Email sent successfully to hafsamoin14@gmail.com via smtp.gmail.com:587
+INFO:auth_service.main:✅ OTP email sent successfully via SMTP to hafsamoin14@gmail.com
+INFO:auth_service.main:OTP sent to hafsamoin14@gmail.com (type=admin)
+INFO:db_ops_service.main:OTP verified successfully for hafsamoin14@gmail.com (type=admin)
+INFO:db_ops_service.main:User marked as verified: hafsamoin14@gmail.com
+INFO:auth_service.main:Admin account verified and activated: hafsamoin14@gmail.com
+INFO:db_ops_service.main:Voter record stored: hafsamoin12@yahoo.com
+INFO:auth_service.main:✅ Email sent successfully to hafsamoin12@yahoo.com via smtp.gmail.com:587
+INFO:auth_service.main:✅ Registration email sent to hafsamoin12@yahoo.com
+INFO:auth_service.main:Registration email sent to hafsamoin12@yahoo.com
+INFO:db_ops_service.main:Voter record stored: hafsamoin65@gmail.com
+INFO:auth_service.main:✅ Email sent successfully to hafsamoin65@gmail.com via smtp.gmail.com:587
+INFO:auth_service.main:✅ Registration email sent to hafsamoin65@gmail.com
+INFO:auth_service.main:Registration email sent to hafsamoin65@gmail.com
+INFO:auth_service.main:Voter upload complete: 2 uploaded, 0 failed
+INFO:db_ops_service.main:Voter account created: hafsamoin12@yahoo.com
+INFO:auth_service.main:Voter registered successfully: hafsamoin12@yahoo.com

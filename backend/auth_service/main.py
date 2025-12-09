@@ -49,9 +49,6 @@ DB_OPS_URL = os.getenv("DB_OPS_URL", "http://db_ops:8001")
 KAFKA_BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP", "kafka:9092")
 POST_USER_TOPIC = os.getenv("KAFKA_POSTGRES_TOPIC", "user.postgres.ops")
 
-# Only log sensitive tokens (OTP, registration tokens) when DEBUG mode is enabled
-DEBUG_MODE = os.getenv("DEBUG", "false").lower() in ("true", "1", "yes")
-
 @app.on_event("startup")
 async def startup():
     global producer
@@ -567,9 +564,7 @@ E-Vote Team
     
     # Check if SMTP is configured
     if not smtp_host or not smtp_port:
-        logger.warning("SMTP not configured - OTP will only be logged in debug mode")
-        if DEBUG_MODE:
-            logger.info("[DEV MODE] OTP for %s (%s): %s", email, user_type, otp)
+        logger.warning("SMTP not configured - OTP email cannot be sent")
         return
     
     try:
@@ -582,8 +577,6 @@ E-Vote Team
         logger.info("✅ OTP email sent successfully via SMTP to %s", email)
     except Exception as e:
         logger.error("❌ SMTP send failed: %s", e)
-        if DEBUG_MODE:
-            logger.info("[FALLBACK] OTP for %s (%s): %s", email, user_type, otp)
         raise  # Re-raise so caller knows email failed
 
 def _smtp_send_otp(smtp_host, smtp_port, smtp_user, smtp_pass, email_from, to_email, subject, body_text, body_html):
@@ -768,8 +761,7 @@ async def upload_voters(payload: dict):
     
     results = {
         "uploaded": 0,
-        "failed": [],
-        "tokens": {}  # For development - you can check tokens here
+        "failed": []
     }
     
     for voter in voters:
@@ -809,7 +801,6 @@ async def upload_voters(payload: dict):
                         # Continue anyway - voter can still register with token
                     
                     results["uploaded"] += 1
-                    results["tokens"][voter["email"]] = token  # For dev/testing
                 else:
                     results["failed"].append({
                         "email": voter["email"],
@@ -1029,10 +1020,7 @@ E-Vote Election Commission
     email_from = os.getenv("EMAIL_FROM", "noreply@evote.example.com")
     
     if not smtp_host or not smtp_port:
-        logger.warning("SMTP not configured - registration link logged only in debug mode")
-        if DEBUG_MODE:
-            logger.info("[DEV MODE] Registration link for %s: %s", email, register_url)
-            logger.info("[DEV MODE] Token: %s", token)
+        logger.warning("SMTP not configured - registration email cannot be sent")
         return
     
     try:
@@ -1044,7 +1032,4 @@ E-Vote Election Commission
         logger.info("✅ Registration email sent to %s", email)
     except Exception as e:
         logger.error("❌ Failed to send registration email: %s", e)
-        if DEBUG_MODE:
-            logger.info("[FALLBACK] Registration link for %s: %s", email, register_url)
-            logger.info("[FALLBACK] Token: %s", token)
         raise
