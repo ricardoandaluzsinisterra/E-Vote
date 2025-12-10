@@ -1,5 +1,8 @@
+import asyncio
 import os
 import json
+import smtplib
+import time
 import uuid
 import logging
 import urllib.request
@@ -11,8 +14,13 @@ from aiokafka import AIOKafkaProducer
 
 from auth_service.auth.password_utils import *
 from auth_service.auth.jwt_handler import generate_tokens
+from auth_service.auth.otp_utils import generate_otp
 from models.User import User
 from models.auth_models import *
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+
+OTP_EXPIRY_SECONDS = 600  
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(filename='myapp.log', level=logging.INFO)
@@ -81,7 +89,7 @@ async def register_user(user_data: UserRegistrationRequest) -> RegistrationSucce
     # Create a lightweight user object and generate verification token locally
     new_user = User.from_user_registration_request(user_data)
     new_user.password_hash = hash_password(user_data.password)
-    new_user.verification_token = f"{uuid.uuid4()}-{int(__import__('time').time())}"
+    new_user.verification_token = f"{uuid.uuid4()}-{int(time.time())}"
 
     # Check if user already exists to avoid duplicate insert errors
     try:
@@ -91,6 +99,9 @@ async def register_user(user_data: UserRegistrationRequest) -> RegistrationSucce
             if resp_lookup.status == 200:
                 # User already exists
                 raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User with this email already exists")
+    except HTTPException:
+        # Re-raise HTTPException (e.g., 409 Conflict) so it doesn't get caught by generic Exception handler
+        raise
     except urllib.error.HTTPError as e:
         # 404 means user not found (expected), other errors bubble up
         if getattr(e, 'code', None) != 404:
@@ -129,6 +140,8 @@ async def register_user(user_data: UserRegistrationRequest) -> RegistrationSucce
         if getattr(e, 'code', None) == 409:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User with this email already exists")
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="User persistence failed")
+    except HTTPException:
+        raise
     except Exception as e:
         logger.exception("Failed to call db_ops_service create: %s", e)
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="User persistence unavailable")
@@ -232,3 +245,791 @@ async def internal_verify_password(payload: dict):
     except Exception as e:
         logger.exception("Internal verify failed: %s", e)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="verify failed")
+
+@app.post("/send-otp")
+async def send_otp(request: OTPRequest) -> OTPResponse:
+    """
+    Generate and send OTP to user's email.
+    Used for both admin registration and voter login verification.
+    """
+    email = request.email
+    user_type = request.user_type
+    
+    # Validate user_type
+    if user_type not in ["voter", "admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="user_type must be 'voter' or 'admin'"
+        )
+    
+    # Rate limiting: max 3 OTP requests per email per hour
+    try:
+        rate_limit_url = f"{DB_OPS_URL.rstrip('/')}/redis/check-otp-rate-limit"
+        rate_payload = {
+            "email": email,
+            "user_type": user_type,
+            "max_requests": 3,
+            "window_seconds": 3600  # 1 hour
+        }
+        req_data = json.dumps(rate_payload).encode("utf-8")
+        req = urllib.request.Request(
+            rate_limit_url,
+            data=req_data,
+            method="POST",
+            headers={"Content-Type": "application/json"}
+        )
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            pass  # If we get here, rate limit check passed
+    except urllib.error.HTTPError as e:
+        if getattr(e, 'code', None) == 429:
+            # Rate limit exceeded
+            try:
+                error_body = e.read().decode()
+                error_data = json.loads(error_body)
+                detail = error_data.get("detail", "Too many OTP requests. Please try again later.")
+            except Exception:
+                detail = "Too many OTP requests. Please try again later."
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=detail
+            )
+        # For other errors, log and continue (fail open)
+        logger.warning("Rate limit check failed with code %s, allowing request", getattr(e, 'code', None))
+    except Exception as e:
+        # If rate limiting service unavailable, allow the request (fail open)
+        logger.warning("Rate limit check failed: %s, allowing request", e)
+    
+    # For voters, check if user exists and is verified
+    # For admins, this is part of registration flow
+    if user_type == "voter":
+        try:
+            lookup_url = f"{DB_OPS_URL.rstrip('/')}/db/user-by-email?email={urllib.parse.quote(email)}"
+            req_lookup = urllib.request.Request(lookup_url, method="GET")
+            with urllib.request.urlopen(req_lookup, timeout=3) as resp_lookup:
+                if resp_lookup.status == 200:
+                    body = resp_lookup.read().decode("utf-8")
+                    user_data = json.loads(body)
+                    # Check if user is already verified for login
+                    if not user_data.get("is_verified"):
+                        raise HTTPException(
+                            status_code=status.HTTP_403_FORBIDDEN,
+                            detail="Please verify your email first before requesting login OTP"
+                        )
+        except urllib.error.HTTPError as e:
+            if getattr(e, 'code', None) == 404:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="User not found"
+                )
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="User lookup service unavailable"
+            )
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.exception("Failed to lookup user: %s", e)
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Service unavailable"
+            )
+    
+    # Generate 6-digit OTP
+    otp = generate_otp()
+    
+    # Store OTP in Redis via db_ops_service
+    try:
+        store_url = f"{DB_OPS_URL.rstrip('/')}/redis/store-otp"
+        req_payload = {
+            "email": email,
+            "otp": otp,
+            "user_type": user_type,
+            "expiry_seconds": OTP_EXPIRY_SECONDS
+        }
+        req_data = json.dumps(req_payload).encode("utf-8")
+        req = urllib.request.Request(
+            store_url,
+            data=req_data,
+            method="POST",
+            headers={"Content-Type": "application/json"}
+        )
+        
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            if resp.status != 200:
+                logger.warning("Failed to store OTP in Redis")
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="OTP service unavailable"
+                )
+    except urllib.error.HTTPError as e:
+        logger.warning("Redis store OTP HTTPError %s", getattr(e, 'code', None))
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="OTP service unavailable"
+        )
+    except Exception as e:
+        logger.exception("Failed to store OTP: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="OTP service unavailable"
+        )
+    
+    # Send OTP via email
+    try:
+        await send_otp_email(email, otp, user_type)
+    except Exception as e:
+        logger.warning("Failed to send OTP email for %s: %s", email, e)
+        # Don't fail the request if email fails, OTP is still stored
+    
+    logger.info("OTP sent to %s (type=%s)", email, user_type)
+    return OTPResponse(
+        message="OTP sent to your email",
+        email=email,
+        expires_in_seconds=OTP_EXPIRY_SECONDS
+    )
+
+
+@app.post("/verify-otp")
+async def verify_otp(request: OTPVerificationRequest) -> dict:
+    """
+    Verify OTP submitted by user.
+    Used for both admin registration completion and voter login MFA.
+    """
+    email = request.email
+    otp = request.otp
+    user_type = request.user_type
+    
+    if not otp or len(otp) != 6 or not otp.isdigit():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="OTP must be a 6-digit code"
+        )
+    
+    # Verify OTP via db_ops_service (Redis check)
+    try:
+        verify_url = f"{DB_OPS_URL.rstrip('/')}/redis/verify-otp"
+        req_payload = {
+            "email": email,
+            "otp": otp,
+            "user_type": user_type
+        }
+        req_data = json.dumps(req_payload).encode("utf-8")
+        req = urllib.request.Request(
+            verify_url,
+            data=req_data,
+            method="POST",
+            headers={"Content-Type": "application/json"}
+        )
+        
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            if resp.status != 200:
+                body = resp.read().decode() if resp else ""
+                logger.warning("OTP verification failed: %s", body)
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid or expired OTP"
+                )
+            # Response body not needed - success is indicated by 200 status
+            # Check for success in the result, if the API returns such a field
+            if not result.get("success", True):
+                logger.warning("OTP verification failed: %s", body)
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=result.get("detail", "Invalid or expired OTP")
+                )
+    except urllib.error.HTTPError as e:
+        body = None
+        try:
+            body = e.read().decode()
+            error_data = json.loads(body)
+            detail = error_data.get("detail", "Invalid or expired OTP")
+        except Exception:
+            detail = "Invalid or expired OTP"
+        
+        logger.warning("OTP verify HTTPError %s: %s", getattr(e, 'code', None), body)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=detail
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Failed to verify OTP: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="OTP verification service unavailable"
+        )
+    
+    logger.info("OTP verified successfully for %s (type=%s)", email, user_type)
+    
+    # For voter login, generate JWT token
+    if user_type == "voter":
+        try:
+            # Get user data
+            lookup_url = f"{DB_OPS_URL.rstrip('/')}/db/user-by-email?email={urllib.parse.quote(email)}"
+            req_lookup = urllib.request.Request(lookup_url, method="GET")
+            with urllib.request.urlopen(req_lookup, timeout=5) as resp_lookup:
+                body = resp_lookup.read().decode("utf-8")
+                user_data = json.loads(body)
+                
+            user_id = user_data.get("user_id")
+            access_token = generate_tokens(user_id=user_id, email=email)
+            
+            return {
+                "message": "OTP verified successfully",
+                "verified": True,
+                "access_token": access_token,
+                "token_type": "bearer"
+            }
+        except Exception as e:
+            logger.exception("Failed to generate token after OTP verify: %s", e)
+            return {
+                "message": "OTP verified successfully",
+                "verified": True
+            }
+    
+    # For admin registration, just confirm verification
+    return {
+        "message": "OTP verified successfully",
+        "verified": True
+    }
+
+
+async def send_otp_email(email: str, otp: str, user_type: str):
+    """
+    Send OTP via email using SMTP.
+    This replaces your existing send_otp_email function.
+    """
+    if user_type == "admin":
+        subject = "Your Admin Registration OTP - E-Vote"
+        body_text = f"""
+Hello,
+
+Your E-Vote Admin Registration OTP Code is: {otp}
+
+This code will expire in 10 minutes.
+
+If you did not request this code, please ignore this email.
+
+Best regards,
+E-Vote Team
+"""
+        body_html = f"""
+<html>
+<body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+    <h2 style="color: #4CAF50;">Admin Registration Verification</h2>
+    <p>Your OTP code is:</p>
+    <div style="background-color: #f0f0f0; padding: 20px; text-align: center; border-radius: 5px;">
+        <h1 style="color: #4CAF50; font-size: 36px; letter-spacing: 8px; margin: 0;">{otp}</h1>
+    </div>
+    <p style="margin-top: 20px;">This code will expire in <strong>10 minutes</strong>.</p>
+    <p style="color: #666;">If you did not request this code, please ignore this email.</p>
+</body>
+</html>
+"""
+    else:  # voter
+        subject = "Your Login OTP - E-Vote"
+        body_text = f"""
+Hello,
+
+Your E-Vote Login OTP Code is: {otp}
+
+This code will expire in 10 minutes.
+
+If you did not request this code, please secure your account immediately.
+
+Best regards,
+E-Vote Team
+"""
+        body_html = f"""
+<html>
+<body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+    <h2 style="color: #2196F3;">Login Verification</h2>
+    <p>Your OTP code is:</p>
+    <div style="background-color: #f0f0f0; padding: 20px; text-align: center; border-radius: 5px;">
+        <h1 style="color: #2196F3; font-size: 36px; letter-spacing: 8px; margin: 0;">{otp}</h1>
+    </div>
+    <p style="margin-top: 20px;">This code will expire in <strong>10 minutes</strong>.</p>
+    <p style="color: #ff5722;"><strong>Security Alert:</strong> If you did not request this code, please secure your account immediately.</p>
+</body>
+</html>
+"""
+    
+    # Get SMTP configuration
+    smtp_host = os.getenv("SMTP_HOST")
+    smtp_port = int(os.getenv("SMTP_PORT", 587)) if os.getenv("SMTP_PORT") else None
+    smtp_user = os.getenv("SMTP_USER")
+    smtp_pass = os.getenv("SMTP_PASS")
+    email_from = os.getenv("EMAIL_FROM", "noreply@evote.example.com")
+    
+    # Check if SMTP is configured
+    if not smtp_host or not smtp_port:
+        logger.warning("SMTP not configured - OTP email cannot be sent")
+        return
+    
+    try:
+        # Send email using SMTP in a separate thread to avoid blocking
+        await asyncio.to_thread(
+            _smtp_send_otp,
+            smtp_host, smtp_port, smtp_user, smtp_pass,
+            email_from, email, subject, body_text, body_html
+        )
+        logger.info("✅ OTP email sent successfully via SMTP to %s", email)
+    except Exception as e:
+        logger.error("❌ SMTP send failed: %s", e)
+        raise  # Re-raise so caller knows email failed
+
+def _smtp_send_otp(smtp_host, smtp_port, smtp_user, smtp_pass, email_from, to_email, subject, body_text, body_html):
+    """
+    Send OTP email via Gmail SMTP using STARTTLS on port 587.
+    """
+    msg = MIMEMultipart('alternative')
+    msg["From"] = email_from
+    msg["To"] = to_email
+    msg["Subject"] = subject
+
+    # Attach plain text and HTML
+    msg.attach(MIMEText(body_text, 'plain'))
+    msg.attach(MIMEText(body_html, 'html'))
+
+    try:
+        # Connect to Gmail SMTP on port 587
+        with smtplib.SMTP(smtp_host, smtp_port, timeout=10) as server:
+            server.ehlo()           # Identify ourselves to SMTP server
+            server.starttls()       # Upgrade connection to TLS
+            server.ehlo()           # Re-identify after STARTTLS
+            if smtp_user and smtp_pass:
+                server.login(smtp_user, smtp_pass)
+            server.send_message(msg)
+        logger.info("✅ Email sent successfully to %s via %s:%s", to_email, smtp_host, smtp_port)
+    except Exception as e:
+        logger.error("❌ Failed to send OTP email: %s", e)
+        raise
+    
+@app.post("/admin/verify-and-activate")
+async def verify_admin_otp(request: VerifyAdminOTPRequest):
+    """
+    Verify admin OTP and mark their account as verified in the database.
+    This completes admin registration.
+    """
+    email = request.email
+    otp = request.otp
+    
+    if not otp or len(otp) != 6 or not otp.isdigit():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="OTP must be a 6-digit code"
+        )
+    
+    # Verify OTP via Redis
+    try:
+        verify_url = f"{DB_OPS_URL.rstrip('/')}/redis/verify-otp"
+        req_payload = {
+            "email": email,
+            "otp": otp,
+            "user_type": "admin"
+        }
+        req_data = json.dumps(req_payload).encode("utf-8")
+        req = urllib.request.Request(
+            verify_url,
+            data=req_data,
+            method="POST",
+            headers={"Content-Type": "application/json"}
+        )
+        
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            if resp.status != 200:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid or expired OTP"
+                )
+    except urllib.error.HTTPError as e:
+        body = None
+        try:
+            body = e.read().decode()
+            error_data = json.loads(body)
+            detail = error_data.get("detail", "Invalid or expired OTP")
+        except Exception:
+            detail = "Invalid or expired OTP"
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=detail
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Failed to verify OTP: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="OTP verification service unavailable"
+        )
+    
+    # Mark user as verified in database
+    try:
+        mark_verified_url = f"{DB_OPS_URL.rstrip('/')}/db/mark-verified"
+        req_payload = {"email": email}
+        req_data = json.dumps(req_payload).encode("utf-8")
+        req = urllib.request.Request(
+            mark_verified_url,
+            data=req_data,
+            method="POST",
+            headers={"Content-Type": "application/json"}
+        )
+        
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            if resp.status != 200:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Failed to mark account as verified"
+                )
+    except Exception as e:
+        logger.exception("Failed to mark user as verified: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Account verification failed"
+        )
+    
+    logger.info("Admin account verified and activated: %s", email)
+    return {
+        "message": "Account verified successfully. You can now login.",
+        "email": email,
+        "verified": True
+    }
+
+
+@app.post("/admin/upload-candidates")
+async def upload_candidates(payload: dict):
+    """
+    Admin uploads list of candidates for the election.
+    Stores candidates in database.
+    """
+    candidates = payload.get("candidates", [])
+    if not candidates:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No candidates provided"
+        )
+    
+    results = {
+        "uploaded": 0,
+        "failed": []
+    }
+    
+    for candidate in candidates:
+        try:
+            store_url = f"{DB_OPS_URL.rstrip('/')}/db/store-candidate"
+            req_data = json.dumps(candidate).encode("utf-8")
+            req = urllib.request.Request(
+                store_url,
+                data=req_data,
+                method="POST",
+                headers={"Content-Type": "application/json"}
+            )
+            
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                if resp.status == 200:
+                    results["uploaded"] += 1
+                else:
+                    results["failed"].append({
+                        "name": candidate.get("name"),
+                        "reason": "Database storage failed"
+                    })
+        except Exception as e:
+            logger.exception("Failed to store candidate %s: %s", candidate.get("name"), e)
+            results["failed"].append({
+                "name": candidate.get("name", "unknown"),
+                "reason": str(e)
+            })
+    
+    logger.info("Candidate upload complete: %d uploaded, %d failed", 
+                results["uploaded"], len(results["failed"]))
+    return results
+
+
+@app.post("/admin/upload-voters")
+async def upload_voters(payload: dict):
+    """
+    Admin uploads list of eligible voters.
+    Generates registration tokens and sends invitation emails.
+    """
+    voters = payload.get("voters", [])
+    if not voters:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No voters provided"
+        )
+    
+    results = {
+        "uploaded": 0,
+        "failed": []
+    }
+    
+    for voter in voters:
+        try:
+            # Generate one-time registration token
+            token = f"{uuid.uuid4()}-voter-{int(time.time())}"
+            
+            # Store voter record in database
+            store_url = f"{DB_OPS_URL.rstrip('/')}/db/store-voter-record"
+            req_payload = {
+                "email": voter["email"],
+                "full_name": voter["full_name"],
+                "phone_number": voter["phone_number"],
+                "voter_id": voter["voter_id"],
+                "registration_token": token
+            }
+            req_data = json.dumps(req_payload).encode("utf-8")
+            req = urllib.request.Request(
+                store_url,
+                data=req_data,
+                method="POST",
+                headers={"Content-Type": "application/json"}
+            )
+            
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                if resp.status == 200:
+                    # Send registration email
+                    try:
+                        await send_voter_registration_email(
+                            voter["email"],
+                            voter["full_name"],
+                            token
+                        )
+                        logger.info("Registration email sent to %s", voter["email"])
+                    except Exception as e:
+                        logger.warning("Failed to send email to %s: %s", voter["email"], e)
+                        # Continue anyway - voter can still register with token
+                    
+                    results["uploaded"] += 1
+                else:
+                    results["failed"].append({
+                        "email": voter["email"],
+                        "reason": "Database storage failed"
+                    })
+        except Exception as e:
+            logger.exception("Failed to process voter %s: %s", voter.get("email"), e)
+            results["failed"].append({
+                "email": voter.get("email", "unknown"),
+                "reason": str(e)
+            })
+    
+    logger.info("Voter upload complete: %d uploaded, %d failed", 
+                results["uploaded"], len(results["failed"]))
+    return results
+
+
+@app.post("/voter/register")
+async def register_voter(request: VoterRegistrationRequest):
+    """
+    Voter registration using one-time token from email.
+    Validates token and voter data before creating account.
+    """
+    # Validate password
+    password_strength = validate_password_strength(request.password)
+    if not password_strength.get("valid"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=password_strength.get("message")
+        )
+    
+    # Verify token and get stored voter record
+    try:
+        verify_url = f"{DB_OPS_URL.rstrip('/')}/db/verify-voter-token"
+        req_payload = {
+            "token": request.token,
+            "email": request.email
+        }
+        req_data = json.dumps(req_payload).encode("utf-8")
+        req = urllib.request.Request(
+            verify_url,
+            data=req_data,
+            method="POST",
+            headers={"Content-Type": "application/json"}
+        )
+        
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            if resp.status != 200:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid or expired registration token"
+                )
+            body = resp.read().decode("utf-8")
+            stored_voter = json.loads(body)
+    except urllib.error.HTTPError as e:
+        error_code = getattr(e, 'code', None)
+        # Try to get the detail message from db_ops response
+        try:
+            error_body = e.read().decode()
+            error_data = json.loads(error_body)
+            error_detail = error_data.get("detail", "")
+        except Exception:
+            error_detail = ""
+        
+        if error_code == 404:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Registration token not found"
+            )
+        elif error_code == 400:
+            # Token already used or other validation error from db_ops
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=error_detail or "Registration token has already been used"
+            )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Verification service unavailable"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Failed to verify voter token: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Service unavailable"
+        )
+    
+    # Validate voter data matches stored record
+    def normalize_name(name: str) -> str:
+        """Normalize name by lowercasing and collapsing whitespace."""
+        return ' '.join(name.lower().split())
+    
+    if (
+        stored_voter["voter_id"] != request.voter_id or
+        stored_voter["phone_number"] != request.phone_number or
+        normalize_name(stored_voter["full_name"]) != normalize_name(request.full_name)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Voter information does not match our records"
+        )
+    
+    # Create voter account
+    password_hash = hash_password(request.password)
+    
+    try:
+        create_url = f"{DB_OPS_URL.rstrip('/')}/db/create-voter"
+        req_payload = {
+            "email": request.email,
+            "password_hash": password_hash,
+            "voter_id": request.voter_id,
+            "phone_number": request.phone_number,
+            "full_name": request.full_name,
+            "registration_token": request.token
+        }
+        req_data = json.dumps(req_payload).encode("utf-8")
+        req = urllib.request.Request(
+            create_url,
+            data=req_data,
+            method="POST",
+            headers={"Content-Type": "application/json"}
+        )
+        
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            if resp.status != 200:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Failed to create voter account"
+                )
+            body = resp.read().decode("utf-8")
+            created_user = json.loads(body)
+    except urllib.error.HTTPError as e:
+        if getattr(e, 'code', None) == 409:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="This email is already registered"
+            )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Account creation failed"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Failed to create voter account: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Service unavailable"
+        )
+    
+    logger.info("Voter registered successfully: %s", request.email)
+    return {
+        "message": "Registration successful. Your account is now active and you can vote.",
+        "email": request.email,
+        "user_id": created_user.get("user_id")
+    }
+
+
+async def send_voter_registration_email(email: str, full_name: str, token: str):
+    """
+    Send registration invitation email to eligible voter.
+    """
+    base_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
+    register_url = f"{base_url}/voter-register?token={token}"
+    
+    subject = "Voter Registration Invitation - E-Vote"
+    body_text = f"""
+Hello {full_name},
+
+You have been registered as an eligible voter in the upcoming election.
+
+Please complete your registration by visiting:
+{register_url}
+
+Your one-time registration token: {token}
+
+This link will expire after one use.
+
+If you did not expect this email, please contact the election administrator.
+
+Best regards,
+E-Vote Election Commission
+"""
+    
+    body_html = f"""
+<html>
+<body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+    <h2 style="color: #2196F3;">Voter Registration Invitation</h2>
+    <p>Hello <strong>{full_name}</strong>,</p>
+    <p>You have been registered as an eligible voter in the upcoming election.</p>
+    <p>Please complete your registration by clicking below:</p>
+    <div style="text-align: center; margin: 30px 0;">
+        <a href="{register_url}" 
+           style="background-color: #4CAF50; color: white; padding: 15px 30px; 
+                  text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
+            Complete Registration
+        </a>
+    </div>
+    <p>Or copy this link: <br><code style="background: #f0f0f0; padding: 5px;">{register_url}</code></p>
+    <p style="font-size: 12px; color: #666;">Registration token: <code>{token}</code></p>
+    <p style="color: #ff5722; font-size: 14px;">⚠️ This link expires after one use.</p>
+    <hr style="margin-top: 30px; border: none; border-top: 1px solid #ddd;">
+    <p style="font-size: 12px; color: #999;">
+        If you did not expect this email, please contact the election administrator.<br>
+        E-Vote Election Commission
+    </p>
+</body>
+</html>
+"""
+    
+    # Get SMTP config
+    smtp_host = os.getenv("SMTP_HOST")
+    smtp_port = int(os.getenv("SMTP_PORT", 587)) if os.getenv("SMTP_PORT") else None
+    smtp_user = os.getenv("SMTP_USER")
+    smtp_pass = os.getenv("SMTP_PASS")
+    email_from = os.getenv("EMAIL_FROM", "noreply@evote.example.com")
+    
+    if not smtp_host or not smtp_port:
+        logger.warning("SMTP not configured - registration email cannot be sent")
+        return
+    
+    try:
+        await asyncio.to_thread(
+            _smtp_send_otp,
+            smtp_host, smtp_port, smtp_user, smtp_pass,
+            email_from, email, subject, body_text, body_html
+        )
+        logger.info("✅ Registration email sent to %s", email)
+    except Exception as e:
+        logger.error("❌ Failed to send registration email: %s", e)
+        raise
