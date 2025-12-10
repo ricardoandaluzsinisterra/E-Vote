@@ -1,0 +1,2155 @@
+================================================================================
+                    E-VOTE BACKEND ARCHITECTURE DOCUMENTATION
+================================================================================
+
+TABLE OF CONTENTS
+=================
+1. System Architecture Overview
+2. Technology Stack
+3. Service Architecture
+   3.1 Main Backend Service
+   3.2 Auth Service
+   3.3 DB Operations Service
+4. Data Models
+   4.1 User Model
+   4.2 Poll Model
+   4.3 Vote Model
+   4.4 Pydantic Validation Models
+5. Database Architecture
+   5.1 PostgreSQL Schema
+   5.2 Redis Caching Strategy
+6. Authentication & Security
+   6.1 Password Security
+   6.2 JWT Token Management
+   6.3 Email Verification Flow
+7. API Flows
+   7.1 User Registration Flow
+   7.2 User Login Flow
+   7.3 Poll Creation Flow
+   7.4 Voting Flow
+8. Infrastructure Components
+   8.1 Kafka Event Streaming
+   8.2 Docker Containerization
+9. Code Organization
+10. Key Design Patterns
+
+================================================================================
+1. SYSTEM ARCHITECTURE OVERVIEW
+================================================================================
+
+The E-Vote backend is a microservices-based architecture designed for an
+electronic voting platform. The system consists of three primary services that
+work together to provide authentication, database operations, and API gateway
+functionality.
+
+HIGH-LEVEL ARCHITECTURE:
+┌─────────────────┐
+│   Client/UI     │
+└────────┬────────┘
+         │ HTTP Requests
+         ▼
+┌─────────────────┐
+│ Main Backend    │  Port: 8000 (API Gateway & Proxy)
+│   (main.py)     │
+└─────┬─────┬─────┘
+      │     │
+      │     └─────────────┐
+      │                   │
+      ▼                   ▼
+┌──────────────┐    ┌────────────────┐
+│ Auth Service │    │ DB Ops Service │
+│ (Port: 8000) │    │  (Port: 8001)  │
+└──────┬───────┘    └────┬───────────┘
+       │                 │
+       │                 ├──────► PostgreSQL
+       │                 └──────► Redis Cache
+       │
+       └─────► Kafka (Event Streaming)
+
+KEY ARCHITECTURAL PRINCIPLES:
+- Separation of Concerns: Each service has a distinct responsibility
+- Service Isolation: Services communicate via HTTP and Kafka
+- Stateless Design: JWT tokens for authentication, no server-side sessions
+- Caching Strategy: Redis for frequently accessed data (user lookups)
+- Event-Driven: Kafka for asynchronous event processing
+- Transaction Safety: ACID compliance using PostgreSQL transactions
+
+================================================================================
+2. TECHNOLOGY STACK
+================================================================================
+
+BACKEND FRAMEWORK:
+- FastAPI 0.104.1: High-performance async web framework
+- Uvicorn 0.24.0: ASGI server for serving FastAPI apps
+- Pydantic 2.5.0: Data validation using Python type hints
+
+DATABASE & CACHING:
+- PostgreSQL: Primary relational database (psycopg 3.2.12)
+- Redis 4.6.0: In-memory cache for user data
+- Database Pattern: Connection pooling with singleton DatabaseManager
+
+AUTHENTICATION & SECURITY:
+- PyJWT 1.7.1: JSON Web Token generation and verification
+- Argon2-cffi 21.3.0: Password hashing (memory-hard algorithm)
+- Email-validator: Email format validation
+
+MESSAGE QUEUE:
+- Kafka: Event streaming platform
+- aiokafka 0.8.0: Async Kafka client for Python
+- kafka-python 2.0.2: Kafka protocol implementation
+
+ADDITIONAL DEPENDENCIES:
+- python-multipart 0.0.20: Form data parsing
+- twilio 6.63.2: SMS/Email notifications (future integration)
+
+CORS CONFIGURATION:
+- Allows all origins (*) for development
+- Credentials: Enabled
+- Methods: All HTTP methods allowed
+- Headers: All headers allowed
+
+================================================================================
+3. SERVICE ARCHITECTURE
+================================================================================
+
+3.1 MAIN BACKEND SERVICE (backend/main.py)
+-------------------------------------------
+ROLE: API Gateway and Request Proxy
+
+The main backend service acts as the entry point for all client requests.
+It doesn't contain business logic but proxies requests to specialized services.
+
+ENDPOINTS:
+- GET  /health          : Health check (returns status: "ok", role: "backend")
+- POST /register        : Proxies to auth-service /register
+- POST /login           : Proxies to auth-service /login
+
+CONFIGURATION:
+- Service Role: "backend"
+- Auth Service URL: http://auth-service:8000 (configurable via env)
+- Timeout: 5 seconds for proxy requests
+
+PROXY IMPLEMENTATION (proxy_post function):
+- Uses urllib.request for HTTP calls (no external dependencies)
+- Converts FastAPI HTTPException for error handling
+- Properly forwards request body as JSON
+- Returns parsed JSON response to client
+
+ERROR HANDLING:
+- 503 SERVICE_UNAVAILABLE: When auth service is down/timeout
+- 502 BAD_GATEWAY: When auth service returns 4xx/5xx errors
+- Propagates actual status codes from auth service
+
+CORS MIDDLEWARE:
+- Configured to allow all origins for development
+- Production should restrict to specific frontend origins
+
+LOGGING:
+- Logs to 'myapp.log' file
+- Log level: INFO
+- Captures proxy errors and auth service failures
+
+
+3.2 AUTH SERVICE (backend/auth_service/main.py)
+------------------------------------------------
+ROLE: Authentication, Authorization, and User Management
+
+The auth service is responsible for all authentication-related operations
+including user registration, login, password management, and JWT token
+generation.
+
+ENDPOINTS:
+
+PUBLIC ENDPOINTS:
+- POST /register
+  Request: UserRegistrationRequest (email, password)
+  Response: RegistrationSuccessResponse (user, verification_token)
+
+  Flow:
+  1. Validates password strength (entropy-based)
+  2. Checks if user exists (via db_ops_service)
+  3. Hashes password using Argon2
+  4. Generates verification token (UUID + timestamp)
+  5. Synchronously creates user in database
+  6. Returns user data + verification token
+
+  Error Cases:
+  - 400 BAD_REQUEST: Weak password
+  - 409 CONFLICT: Email already exists
+  - 503 SERVICE_UNAVAILABLE: DB service down
+
+- POST /login
+  Request: UserLoginRequest (email, password)
+  Response: TokenResponse (access_token, token_type)
+
+  Flow:
+  1. Queries db_ops_service for user by email
+  2. Verifies password hash using Argon2
+  3. Checks if user email is verified
+  4. Generates JWT access token (24-hour validity)
+  5. Returns token
+
+  Error Cases:
+  - 401 UNAUTHORIZED: Invalid email/password
+  - 403 FORBIDDEN: Email not verified
+  - 503 SERVICE_UNAVAILABLE: DB service down
+
+INTERNAL ENDPOINTS (for service-to-service communication):
+- POST /internal/hash-password
+  Purpose: Centralize password hashing logic
+  Request: {"password": "plain_text"}
+  Response: {"password_hash": "argon2_hash"}
+
+- POST /internal/verify-password
+  Purpose: Centralize password verification logic
+  Request: {"password_hash": "hash", "password": "plain_text"}
+  Response: {"valid": true/false}
+
+KAFKA INTEGRATION:
+- Producer initialized on startup (AIOKafkaProducer)
+- Bootstrap servers: kafka:9092
+- Topic: user.postgres.ops
+- Purpose: Async event publishing (currently setup but not used)
+- Graceful shutdown on app termination
+
+CONFIGURATION:
+- Service Role: "auth"
+- DB Ops URL: http://db_ops:8001
+- JWT Secret: From JWT_SECRET env var (falls back to insecure default)
+- Kafka Bootstrap: kafka:9092
+
+SECURITY FEATURES:
+- Password strength validation using entropy calculation
+- Argon2 password hashing (memory-hard, resistant to GPU attacks)
+- JWT tokens with expiration (24 hours default)
+- Email verification requirement before login
+- No plain passwords stored or logged
+
+
+3.3 DB OPERATIONS SERVICE (backend/db_ops_service/main.py)
+-----------------------------------------------------------
+ROLE: Database Access Layer and Cache Management
+
+The DB ops service owns all database connections and provides a clean API
+for data operations. It manages both PostgreSQL and Redis connections.
+
+STARTUP BEHAVIOR:
+- Initializes DatabaseManager singleton on startup
+- Creates connection pool to PostgreSQL
+- Optionally connects to Redis if configured
+- Creates all required tables (users, polls, poll_options, votes)
+- Creates indexes for query optimization
+
+ENDPOINTS:
+
+USER OPERATIONS:
+- GET /db/user/{user_id}
+  Purpose: Fetch user by ID
+  Response: Basic user info (no password/token)
+  Error: 404 NOT_FOUND if user doesn't exist
+
+- GET /db/user-by-email?email={email}
+  Purpose: Fetch user by email (includes sensitive data)
+  Response: Full user details including password_hash and verification_token
+  Caching: Results cached in Redis with 1-hour TTL
+  Error: 404 NOT_FOUND if user doesn't exist
+
+  This endpoint returns sensitive data because it's used by auth_service
+  for login verification. It should not be exposed publicly.
+
+- POST /db/create
+  Purpose: Create new user in database
+  Request: {"email": str, "password_hash": str, "verification_token": str}
+  Response: Created user with database-assigned user_id
+  Transaction: Atomic insert with immediate commit
+  Error Cases:
+  - 400 BAD_REQUEST: Missing required fields
+  - 409 CONFLICT: Email already exists (unique constraint)
+  - 500 INTERNAL_SERVER_ERROR: Database error
+
+- POST /db/verify
+  Purpose: Mark user as verified by token
+  Request: VerificationTokenRequest (verification_token)
+  Response: {"status": "verified", "user_id": int}
+  Side Effects: Invalidates Redis cache for user
+  Error: 400 BAD_REQUEST if token not found
+
+- POST /db/update-password
+  Purpose: Update user password (delegates hashing to auth service)
+  Request: UpdatePasswordRequest (user_id, new_password)
+  Flow:
+  1. Calls auth service /internal/hash-password
+  2. Updates user password_hash in database
+  3. Invalidates Redis cache
+  Response: {"status": "updated"}
+  Error: 503 SERVICE_UNAVAILABLE if auth service down
+
+FASTAPI DEPENDENCY INJECTION:
+- get_database() dependency provides DatabaseManager singleton
+- Ensures connection is established before handling requests
+- Raises RuntimeError if database not connected
+
+CONFIGURATION:
+- Service Role: "db_ops"
+- Auth URL: http://auth-service:8000
+- Database connection via DatabaseManager
+
+REDIS CACHING STRATEGY:
+- Cache key format: "user:email:{email}"
+- TTL: 3600 seconds (1 hour)
+- Cache invalidation on:
+  * User verification
+  * Password update
+- Fallback to PostgreSQL on cache miss
+- Silent failure (logs warning but continues)
+
+ERROR HANDLING:
+- Catches psycopg.IntegrityError for duplicate emails
+- Handles connection timeouts gracefully
+- Logs all database errors with context
+
+================================================================================
+4. DATA MODELS
+================================================================================
+
+4.1 USER MODEL (backend/models/User.py)
+----------------------------------------
+Represents a user account in the system.
+
+CLASS DEFINITION:
+class User:
+    user_id: int                    # Primary key (auto-generated)
+    email: str                      # Unique identifier
+    password_hash: str              # Argon2 hashed password
+    is_verified: bool = False       # Email verification status
+    verification_token: str | None  # Token for email verification
+    created_at: datetime            # Account creation timestamp
+
+METHODS:
+
+Data Conversion:
+- to_api_dict(): Safe for API responses (excludes sensitive data)
+  Returns: {user_id, email, is_verified, created_at}
+
+- to_full_dict(): Complete data (for internal use only)
+  Returns: All fields including password_hash and verification_token
+  Warning: Contains sensitive data
+
+Status Checks:
+- is_verified_status(): Returns verification status
+- can_login(): Checks if user can authenticate (requires verification)
+
+Factory Methods:
+- from_dict(user_data: dict): Create from dictionary
+- from_db_row(row: tuple): Create from database query result
+- from_user_registration_request(registration_data): Create from API request
+  * Sets user_id to 0 (assigned by database)
+  * Password needs hashing before storage
+  * Verification token generated during DB insertion
+
+SPECIAL METHODS:
+- __eq__: Equality based on user_id and email
+- __hash__: Allows User objects in sets/dicts
+- __bool__: True if user_id and email are set
+- __str__: Human-readable representation
+- __repr__: Developer-friendly representation (masks password)
+
+DESIGN NOTES:
+- Plain Python class (not Pydantic) for database operations
+- Immutable email after creation (unique constraint)
+- Verification token format: {uuid}-{timestamp}
+- Default created_at to current time if not provided
+
+
+4.2 POLL MODEL (backend/models/Poll.py)
+----------------------------------------
+Represents a voting poll with options and voting rules.
+
+CLASS DEFINITION:
+class Poll:
+    poll_id: str = ""              # UUID (generated by database)
+    title: str = ""                # Poll question/title
+    description: str | None        # Optional detailed description
+    created_by: int = 0            # User ID of poll creator
+    created_at: datetime           # Poll creation timestamp (UTC)
+    expires_at: datetime | None    # Optional expiration timestamp (UTC)
+    is_active: bool = True         # Whether poll accepts votes
+
+METHODS:
+
+Status Checks:
+- is_valid(): Checks if required fields are populated
+- is_expired(): Checks if current time > expires_at
+- can_vote(): Returns True if active AND not expired
+
+State Management:
+- deactivate(): Mark poll as inactive
+- activate(): Mark poll as active (only if not expired)
+
+Data Conversion:
+- to_api_dict(): Format for API responses
+- to_full_dict(): Complete data (currently same as to_api_dict)
+
+Factory Methods:
+- from_dict(poll_data: dict): Create from dictionary
+  * Handles both 'id' and 'poll_id' field names
+  * Converts ISO format datetime strings
+  * Ensures timezone-aware UTC timestamps
+
+- from_db_row(row: tuple): Create from database query
+  * Expects: (id, title, description, created_by, created_at, expires_at, is_active)
+  * Converts naive datetime to UTC
+
+- from_poll_create(poll_create, created_by): Create from Pydantic model
+  * Sets poll_id to empty (assigned by database)
+  * Initializes with current UTC timestamp
+  * Handles timezone conversion for expires_at
+
+TIMEZONE HANDLING:
+All datetime fields are timezone-aware (UTC):
+- created_at: Always UTC
+- expires_at: Converted to UTC if provided
+- Naive datetimes are assumed UTC and converted
+
+DESIGN NOTES:
+- Empty poll_id indicates not yet persisted
+- Expiration is optional (None = never expires)
+- is_active allows manual poll closure before expiration
+- Poll options stored separately in poll_options table
+
+
+4.3 VOTE MODEL (backend/models/Vote.py)
+----------------------------------------
+Represents a user's vote on a specific poll option.
+
+CLASS DEFINITION:
+class Vote:
+    vote_id: str = ""              # UUID (generated by database)
+    user_id: str = ""              # ID of user who voted
+    poll_id: str = ""              # ID of poll being voted on
+    option_id: str = ""            # ID of selected option
+    voted_at: datetime             # Vote timestamp (UTC)
+
+METHODS:
+
+Validation:
+- is_valid(): Checks if all required fields are populated
+- matches_user_and_poll(user_id, poll_id): Check specific vote match
+  Used for duplicate vote validation
+
+Data Conversion:
+- to_api_dict(): Format for API responses
+- to_full_dict(): Complete data (currently same as to_api_dict)
+
+Factory Methods:
+- from_dict(vote_data: dict): Create from dictionary
+  * Handles both 'id' and 'vote_id' field names
+  * Converts ISO format datetime strings to UTC
+
+- from_db_row(row: tuple): Create from database query
+  * Expects: (id, user_id, poll_id, option_id, voted_at)
+  * Ensures timezone-aware UTC timestamp
+
+- from_vote_create(vote_create, user_id): Create from Pydantic model
+  * Sets vote_id to empty (assigned by database)
+  * Sets voted_at to current UTC timestamp
+
+DATABASE CONSTRAINTS:
+- UNIQUE(user_id, poll_id): One vote per user per poll
+- Foreign keys: user_id → users(id)
+                poll_id → polls(id)
+                option_id → poll_options(id)
+- CASCADE DELETE: Vote deleted if user/poll/option deleted
+
+DESIGN NOTES:
+- Immutable after creation (no vote updates, only delete/recreate)
+- Timezone-aware UTC timestamps for consistency
+- Empty vote_id indicates not yet persisted
+
+
+4.4 PYDANTIC VALIDATION MODELS
+-------------------------------
+
+AUTH MODELS (backend/models/auth_models.py):
+
+UserRegistrationRequest:
+  - email: EmailStr (validated email format)
+  - password: str (validated by auth service)
+
+UserLoginRequest:
+  - email: EmailStr
+  - password: str
+
+UserResponse:
+  - user_id: int
+  - email: str
+  - is_verified: bool
+  - created_at: str | None
+
+TokenResponse:
+  - access_token: str
+  - token_type: str = "bearer"
+
+RegistrationSuccessResponse:
+  - message: str = "Registration successful"
+  - user: UserResponse
+  - verification_token: str | None
+
+VerificationTokenRequest:
+  - verification_token: str
+
+UpdatePasswordRequest:
+  - user_id: int
+  - new_password: str
+
+
+POLL MODELS (backend/models/poll_models.py):
+
+PollCreate:
+  - title: str (1-500 chars, no whitespace-only)
+  - description: str | None (max 2000 chars)
+  - options: List[str] (2-10 unique options, no empty strings)
+  - expires_at: datetime | None (must be future)
+
+  Validators:
+  * Strips whitespace from title and options
+  * Ensures options are unique
+  * Validates expiration is in future
+
+PollOption:
+  - id: str
+  - poll_id: str
+  - option_text: str
+  - vote_count: int = 0
+  - display_order: int = 0
+
+PollResponse:
+  - id: str
+  - title: str
+  - description: str | None
+  - created_by: int
+  - created_at: str (ISO format)
+  - expires_at: str | None (ISO format)
+  - is_active: bool
+  - options: List[PollOption]
+  - total_votes: int = 0
+
+  Methods:
+  * calculate_option_percentages(): Returns Dict[option_id, percentage]
+
+VoteRequest:
+  - poll_id: str
+  - option_id: str
+
+
+VOTE MODELS (backend/models/vote_models.py):
+
+VoteCreate:
+  - poll_id: str (min_length=1, no whitespace-only)
+  - option_id: str (min_length=1, no whitespace-only)
+
+  Validators:
+  * Strips whitespace from IDs
+
+VoteResponse:
+  - id: str
+  - user_id: str
+  - poll_id: str
+  - option_id: str
+  - voted_at: str (ISO format)
+
+VoteConfirmation:
+  - message: str
+  - vote: VoteResponse
+
+UserVoteStatus:
+  - has_voted: bool
+  - poll_id: str
+  - vote: VoteResponse | None
+
+================================================================================
+5. DATABASE ARCHITECTURE
+================================================================================
+
+5.1 POSTGRESQL SCHEMA
+----------------------
+
+The database uses PostgreSQL for ACID-compliant data storage with proper
+foreign key constraints and cascade rules.
+
+TABLE: users
+------------
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,                    -- Auto-incrementing integer ID
+    email VARCHAR(255) UNIQUE NOT NULL,       -- Unique user email
+    password_hash TEXT NOT NULL,              -- Argon2 hash (never plain text)
+    is_verified BOOLEAN DEFAULT FALSE,        -- Email verification status
+    verification_token VARCHAR(255),          -- Token for email verification
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+Indexes:
+- PRIMARY KEY on id (automatic)
+- UNIQUE constraint on email (automatic index)
+
+Constraints:
+- email must be unique
+- password_hash cannot be NULL
+
+
+TABLE: polls
+------------
+CREATE TABLE polls (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    created_by INTEGER NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    expires_at TIMESTAMP WITH TIME ZONE,
+    is_active BOOLEAN DEFAULT TRUE,
+
+    CONSTRAINT fk_created_by FOREIGN KEY (created_by)
+        REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT check_expires_after_created
+        CHECK (expires_at IS NULL OR expires_at > created_at)
+);
+
+Indexes:
+- idx_polls_created_by_created_at: (created_by, created_at DESC)
+  Purpose: Efficiently fetch user's polls sorted by date
+
+- idx_polls_is_active_created_at: (is_active, created_at DESC)
+  Purpose: Efficiently fetch active polls
+
+Constraints:
+- created_by references users(id) with CASCADE DELETE
+- expires_at must be after created_at if set
+
+
+TABLE: poll_options
+-------------------
+CREATE TABLE poll_options (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    poll_id UUID NOT NULL,
+    option_text VARCHAR(500) NOT NULL,
+    vote_count INTEGER DEFAULT 0,
+    display_order INTEGER NOT NULL,
+
+    CONSTRAINT fk_poll FOREIGN KEY (poll_id)
+        REFERENCES polls(id) ON DELETE CASCADE
+);
+
+Indexes:
+- idx_poll_options_poll_id_display_order: (poll_id, display_order)
+  Purpose: Efficiently fetch and sort poll options
+
+Constraints:
+- poll_id references polls(id) with CASCADE DELETE
+
+
+TABLE: votes
+------------
+CREATE TABLE votes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id INTEGER NOT NULL,
+    poll_id UUID NOT NULL,
+    option_id UUID NOT NULL,
+    voted_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+
+    CONSTRAINT unique_user_poll UNIQUE (user_id, poll_id),
+    CONSTRAINT fk_user FOREIGN KEY (user_id)
+        REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_poll_vote FOREIGN KEY (poll_id)
+        REFERENCES polls(id) ON DELETE CASCADE,
+    CONSTRAINT fk_option FOREIGN KEY (option_id)
+        REFERENCES poll_options(id) ON DELETE CASCADE
+);
+
+Indexes:
+- idx_votes_poll_id: (poll_id)
+  Purpose: Efficiently fetch all votes for a poll
+
+Constraints:
+- UNIQUE(user_id, poll_id): Prevents duplicate votes
+- Foreign keys ensure referential integrity
+- CASCADE DELETE: Clean up votes when user/poll/option deleted
+
+
+TABLE: events (Kafka consumer)
+------------------------------
+CREATE TABLE events (
+    id SERIAL PRIMARY KEY,
+    topic VARCHAR(255),
+    event_type VARCHAR(255),
+    payload JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+Purpose: Audit log for Kafka messages
+Used by: consumer_worker.py
+
+
+DATABASE TRANSACTIONS:
+----------------------
+
+The codebase uses psycopg3's connection.transaction() context manager for
+atomic operations. Examples:
+
+1. Vote Creation (operations.py:create_vote):
+   with conn.transaction():
+       - Insert vote record
+       - Increment option vote_count
+       - Automatic commit on success
+       - Automatic rollback on exception
+
+2. Vote Deletion (operations.py:delete_vote):
+   with conn.transaction():
+       - Get option_id from existing vote
+       - Delete vote record
+       - Decrement option vote_count
+       - Automatic commit/rollback
+
+3. Poll Creation (operations.py:create_poll):
+   with conn.transaction():
+       - Insert poll record
+       - Insert all poll options
+       - Automatic commit/rollback
+
+AUTOCOMMIT MODE:
+The DatabaseManager sets connection.autocommit = True by default, which is
+why explicit transactions are required for atomic multi-statement operations.
+
+
+5.2 REDIS CACHING STRATEGY
+---------------------------
+
+Redis is used as a read-through cache to reduce database load for frequently
+accessed data.
+
+CACHE CONFIGURATION:
+- Host: From REDIS_HOST env var
+- Port: From REDIS_PORT env var (default: 6379)
+- Database: From REDIS_DB env var (default: 0)
+- decode_responses: True (strings instead of bytes)
+
+CACHED DATA:
+
+User Lookups by Email:
+- Key Format: "user:email:{email}"
+- Value: JSON string with user data
+  {
+    "user_id": int,
+    "email": str,
+    "password_hash": str,
+    "is_verified": bool,
+    "verification_token": str,
+    "created_at": str
+  }
+- TTL: 3600 seconds (1 hour)
+- Invalidation: On user verification or password update
+
+CACHE FLOW (operations.py:get_user_by_email_as_user):
+1. Check Redis for key "user:email:{email}"
+2. If found: Return cached data
+3. If not found:
+   a. Query PostgreSQL
+   b. Cache result in Redis (1-hour TTL)
+   c. Return data
+4. On error: Log warning and fall back to PostgreSQL
+
+CACHE INVALIDATION:
+Explicit cache invalidation occurs on:
+- User verification (db_ops_service/main.py:api_verify_user)
+- Password update (db_ops_service/main.py:api_update_password)
+
+Method:
+redis_client.delete(f"user:email:{email}")
+
+RESILIENCE:
+- Redis failures are logged but don't break functionality
+- System continues with PostgreSQL if Redis unavailable
+- Cache misses simply result in database queries
+
+DESIGN NOTES:
+- Cache only stable, frequently accessed data (user profiles)
+- Don't cache mutable data that changes often (poll results)
+- TTL prevents stale data issues
+- Active invalidation ensures consistency
+
+================================================================================
+6. AUTHENTICATION & SECURITY
+================================================================================
+
+6.1 PASSWORD SECURITY (auth_service/auth/password_utils.py)
+------------------------------------------------------------
+
+HASHING ALGORITHM: Argon2
+
+Argon2 is a memory-hard key derivation function designed to resist
+GPU-based attacks. It won the Password Hashing Competition in 2015.
+
+Implementation:
+- Library: argon2-cffi 21.3.0
+- Algorithm: Argon2id (hybrid mode combining Argon2i and Argon2d)
+- Default parameters from argon2.PasswordHasher() (secure defaults)
+
+FUNCTIONS:
+
+hash_password(password: str) -> str:
+  - Hashes plain text password using Argon2
+  - Returns: Encoded hash string (includes algorithm, params, salt, hash)
+  - Format: $argon2id$v=19$m=65536,t=3,p=4$salt$hash
+  - Raises: TypeError if password is empty/None
+           argon2.exceptions.HashingError on failure
+
+verify_password(password_hash: str, password: str) -> bool:
+  - Verifies plain text password against stored hash
+  - Returns: True if match, False otherwise
+  - Catches: VerifyMismatchError, InvalidHash (returns False)
+  - Note: Order matters (hash first, then plain password)
+
+PASSWORD STRENGTH VALIDATION:
+
+validate_password_strength(password: str) -> dict:
+  - Calculates entropy-based password strength
+  - Returns:
+    * {"valid": False, "message": "Password is too weak"} if entropy < 50
+    * {"valid": True, "strength": "Good"} if 50 <= entropy < 70
+    * {"valid": True, "strength": "Excellent"} if entropy >= 70
+
+calculate_entropy(password: str) -> float:
+  - Formula: password_length * log2(character_space_size)
+  - Character spaces:
+    * Lowercase letters: +26
+    * Uppercase letters: +26
+    * Digits: +10
+    * Punctuation: +32 (string.punctuation)
+  - Example: "Password123!"
+    Length: 12
+    Spaces: 26 + 26 + 10 + 32 = 94
+    Entropy: 12 * log2(94) ≈ 78.8 bits (Excellent)
+
+SECURITY PROPERTIES:
+- Memory-hard: Resists GPU/ASIC attacks
+- Salted: Each hash has unique random salt
+- Parameterized: Can increase difficulty over time
+- Constant-time verification: Resists timing attacks
+
+STORAGE:
+- Never store plain passwords
+- Store only Argon2 hash in database
+- Hash includes all parameters (salt, iterations, memory cost)
+- No separate salt column needed
+
+
+6.2 JWT TOKEN MANAGEMENT (auth_service/auth/jwt_handler.py)
+------------------------------------------------------------
+
+JSON Web Tokens (JWT) provide stateless authentication by encoding user
+identity in a signed token.
+
+CONFIGURATION:
+- Secret Key: From JWT_SECRET env var
+- Fallback: "change-me-in-production" (logs warning)
+- Algorithm: HS256 (HMAC with SHA-256)
+- Default Validity: 24 hours
+
+TOKEN STRUCTURE:
+Header:
+  {
+    "alg": "HS256",
+    "typ": "JWT"
+  }
+
+Payload:
+  {
+    "user_id": int,           # User identifier
+    "email": str,             # User email
+    "iat": int,               # Issued at (Unix timestamp)
+    "exp": int                # Expiration (Unix timestamp)
+  }
+
+Signature:
+  HMAC-SHA256(base64(header) + "." + base64(payload), JWT_SECRET)
+
+FUNCTIONS:
+
+generate_tokens(user_id: int, email: str, hours_valid: int = 24) -> str:
+  - Creates JWT token for authenticated user
+  - Sets issued_at to current UTC time
+  - Sets expiration to current time + hours_valid
+  - Returns: JWT token string (can be decoded without secret)
+  - Raises: PyJWTError if token generation fails
+
+verify_token(token: str) -> dict | None:
+  - Decodes and verifies JWT token
+  - Checks signature using JWT_SECRET
+  - Checks expiration time
+  - Returns: Decoded payload dict or None if invalid
+  - Handles:
+    * jwt.ExpiredSignatureError: Token expired
+    * PyJWTError: Invalid signature, malformed token
+
+get_current_user_from_token(token: str) -> dict | None:
+  - Higher-level wrapper around verify_token
+  - Returns: {"user_id", "email", "issued_at", "expires_at"} or None
+  - Use this for extracting user info from Authorization header
+
+TOKEN FLOW:
+1. Login Success → generate_tokens() → Return to client
+2. Client stores token (localStorage, cookie, etc.)
+3. Client includes token in Authorization header: "Bearer {token}"
+4. Service extracts token → verify_token() → Extract user_id
+5. Service validates user has permission for operation
+
+SECURITY PROPERTIES:
+- Stateless: No server-side session storage needed
+- Signed: Tamper-proof (modification detected via signature)
+- Expiring: Tokens auto-expire after 24 hours
+- Non-revokable: Cannot revoke before expiration (use short TTL)
+
+SECURITY NOTES:
+- Secret must be strong random value (256+ bits)
+- Use HTTPS to prevent token interception
+- Store tokens securely on client (httpOnly cookies ideal)
+- Validate token on every protected endpoint
+- Refresh tokens before expiration (not implemented yet)
+
+
+6.3 EMAIL VERIFICATION FLOW
+----------------------------
+
+Users must verify their email before they can log in. This prevents
+fake accounts and ensures contact ability.
+
+VERIFICATION TOKEN FORMAT:
+{uuid4}-{unix_timestamp}
+Example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890-1699234567"
+
+REGISTRATION FLOW:
+1. User submits email + password
+2. Auth service:
+   a. Validates password strength
+   b. Checks if email already exists (queries db_ops_service)
+   c. Hashes password using Argon2
+   d. Generates verification token
+   e. Creates user in database (is_verified=False)
+   f. Returns user data + verification_token
+3. Frontend/Email service:
+   a. Sends verification email with token
+   b. Email contains link: https://app.com/verify?token={token}
+
+VERIFICATION FLOW:
+1. User clicks link in email
+2. Frontend extracts token from URL
+3. Frontend calls: POST /db/verify with {verification_token: token}
+4. db_ops_service:
+   a. Finds user by verification_token
+   b. Updates is_verified = TRUE
+   c. Invalidates Redis cache
+   d. Returns success
+5. Frontend redirects to login page
+
+LOGIN ENFORCEMENT:
+In auth_service/main.py:login_user():
+  if not user.is_verified:
+      raise HTTPException(
+          status_code=403,
+          detail="Email not verified. Please verify your email before logging in."
+      )
+
+SECURITY PROPERTIES:
+- One-time use: Token should be invalidated after verification
+  (not currently implemented, but verification_token column could be cleared)
+- Time-limited: Include timestamp in token for expiration checking
+  (not currently implemented, but timestamp is included)
+- Unique: UUID ensures no collisions
+- Non-guessable: 128-bit UUID space makes brute force infeasible
+
+TOKEN STORAGE:
+- Stored in users.verification_token column
+- Included in initial registration response
+- Could be cleared after successful verification (security improvement)
+
+FUTURE ENHANCEMENTS:
+- Token expiration (check timestamp, expire after 24-48 hours)
+- Token resend endpoint (generate new token for unverified users)
+- Clear token after verification (security improvement)
+- Rate limiting on verification attempts
+
+================================================================================
+7. API FLOWS
+================================================================================
+
+7.1 USER REGISTRATION FLOW
+---------------------------
+
+SEQUENCE DIAGRAM:
+Client → Main Backend → Auth Service → DB Ops Service → PostgreSQL
+
+DETAILED STEPS:
+
+1. CLIENT REQUEST:
+   POST http://localhost:8000/register
+   Headers: Content-Type: application/json
+   Body: {
+     "email": "user@example.com",
+     "password": "SecurePass123!"
+   }
+
+2. MAIN BACKEND (main.py):
+   - Receives request on /register endpoint
+   - Calls proxy_post("/register", payload)
+   - Forwards to http://auth-service:8000/register
+
+3. AUTH SERVICE (auth_service/main.py):
+   a. Validates request schema (UserRegistrationRequest)
+      - Email format validation (EmailStr)
+      - Password must be non-empty string
+
+   b. Validates password strength:
+      password_strength = validate_password_strength(password)
+      Requires: entropy >= 50 bits
+      Rejects with 400 if too weak
+
+   c. Creates User object:
+      new_user = User.from_user_registration_request(user_data)
+      new_user.password_hash = hash_password(password)  # Argon2
+      new_user.verification_token = f"{uuid4()}-{timestamp()}"
+
+   d. Checks for existing user:
+      GET http://db_ops:8001/db/user-by-email?email={email}
+      - If 200: User exists → Return 409 CONFLICT
+      - If 404: User doesn't exist → Continue
+      - If error: Return 503 SERVICE_UNAVAILABLE
+
+   e. Creates user in database:
+      POST http://db_ops:8001/db/create
+      Body: {
+        "email": new_user.email,
+        "password_hash": new_user.password_hash,
+        "verification_token": new_user.verification_token
+      }
+      Response: {
+        "user_id": 123,
+        "email": "user@example.com",
+        "is_verified": false,
+        "verification_token": "token-here",
+        "created_at": "2024-11-06T12:34:56Z"
+      }
+
+   f. Returns success response:
+      {
+        "user": {
+          "user_id": 123,
+          "email": "user@example.com",
+          "is_verified": false,
+          "created_at": "2024-11-06T12:34:56Z"
+        },
+        "verification_token": "token-here"
+      }
+
+4. DB OPS SERVICE (db_ops_service/main.py):
+   POST /db/create endpoint:
+
+   a. Validates payload:
+      - email and password_hash required
+      - Returns 400 if missing
+
+   b. Creates User object:
+      temp_user = User(
+          user_id=0,  # Will be assigned by database
+          email=email,
+          password_hash=password_hash,
+          is_verified=False,
+          verification_token=verification_token
+      )
+
+   c. Calls database operation:
+      created = create_user(db.get_cursor(), temp_user)
+
+   d. Handles errors:
+      - psycopg.IntegrityError (duplicate email) → 409 CONFLICT
+      - Other errors → 500 INTERNAL_SERVER_ERROR
+
+   e. Returns created user with database-assigned user_id
+
+5. DATABASE (operations.py:create_user):
+   a. Generates verification token (if not provided):
+      verification_token = f"{uuid4()}-{time()}"
+
+   b. Inserts user:
+      INSERT INTO users (email, password_hash, is_verified, verification_token)
+      VALUES (%s, %s, %s, %s) RETURNING id
+
+   c. Updates User object with database values:
+      user.user_id = returned_id
+      user.is_verified = False
+
+   d. Returns updated User object
+
+6. RESPONSE TO CLIENT:
+   Status: 200 OK
+   Body: {
+     "user": {
+       "user_id": 123,
+       "email": "user@example.com",
+       "is_verified": false,
+       "created_at": "2024-11-06T12:34:56Z"
+     },
+     "verification_token": "a1b2c3d4-e5f6-7890-abcd-ef1234567890-1699234567"
+   }
+
+ERROR RESPONSES:
+- 400 Bad Request: Weak password
+  {
+    "detail": "Password is too weak"
+  }
+
+- 409 Conflict: Email already exists
+  {
+    "detail": "User with this email already exists"
+  }
+
+- 503 Service Unavailable: DB service down
+  {
+    "detail": "User persistence service unavailable"
+  }
+
+
+7.2 USER LOGIN FLOW
+--------------------
+
+SEQUENCE DIAGRAM:
+Client → Main Backend → Auth Service → DB Ops Service → PostgreSQL/Redis
+
+DETAILED STEPS:
+
+1. CLIENT REQUEST:
+   POST http://localhost:8000/login
+   Headers: Content-Type: application/json
+   Body: {
+     "email": "user@example.com",
+     "password": "SecurePass123!"
+   }
+
+2. MAIN BACKEND (main.py):
+   - Receives request on /login endpoint
+   - Calls proxy_post("/login", payload)
+   - Forwards to http://auth-service:8000/login
+
+3. AUTH SERVICE (auth_service/main.py):
+   a. Validates request schema (UserLoginRequest)
+
+   b. Queries user by email:
+      GET http://db_ops:8001/db/user-by-email?email={email}
+      Response: {
+        "user_id": 123,
+        "email": "user@example.com",
+        "password_hash": "$argon2id$...",
+        "is_verified": true,
+        "verification_token": "token-here",
+        "created_at": "2024-11-06T12:34:56Z"
+      }
+
+      Error handling:
+      - 404: User not found → Return 401 "Invalid email or password"
+      - 5xx: Service error → Return 503 "User lookup service unavailable"
+
+   c. Creates User object from response:
+      user = User(
+          user_id=data["user_id"],
+          email=data["email"],
+          password_hash=data["password_hash"],
+          is_verified=data["is_verified"],
+          ...
+      )
+
+   d. Verifies password:
+      if not verify_password(user.password_hash, user_data.password):
+          raise HTTPException(401, "Invalid email or password")
+
+      Note: Order matters - verify_password(hash, plain_password)
+
+   e. Checks verification status:
+      if not user.is_verified:
+          raise HTTPException(403,
+              "Email not verified. Please verify your email before logging in.")
+
+   f. Generates JWT token:
+      access_token = generate_tokens(
+          user_id=user.user_id,
+          email=user.email
+      )
+
+      Token payload:
+      {
+        "user_id": 123,
+        "email": "user@example.com",
+        "iat": 1699234567,
+        "exp": 1699320967  # 24 hours later
+      }
+
+   g. Returns token response:
+      {
+        "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+        "token_type": "bearer"
+      }
+
+4. DB OPS SERVICE (db_ops_service/main.py):
+   GET /db/user-by-email endpoint:
+
+   a. Extracts email from query parameter
+
+   b. Queries database (with Redis caching):
+      user = get_user_by_email_as_user(db.get_cursor(), email)
+
+   c. Returns 404 if user not found:
+      raise HTTPException(404, "User not found")
+
+   d. Returns full user data (including sensitive fields):
+      {
+        "user_id": user.user_id,
+        "email": user.email,
+        "password_hash": user.password_hash,  # For verification
+        "is_verified": user.is_verified,      # For login check
+        "verification_token": user.verification_token,
+        "created_at": str(user.created_at)
+      }
+
+   Note: This endpoint returns sensitive data because it's for internal
+         service-to-service communication. It should NOT be exposed publicly.
+
+5. DATABASE (operations.py:get_user_by_email_as_user):
+   REDIS CACHING:
+   a. Check cache:
+      cache_key = f"user:email:{email}"
+      cached = redis_client.get(cache_key)
+
+      If found:
+      - Parse JSON
+      - Create User object
+      - Return (skip PostgreSQL)
+
+   b. On cache miss, query PostgreSQL:
+      SELECT id, email, password_hash, is_verified, verification_token, created_at
+      FROM users WHERE email=%s
+
+   c. If found:
+      - Create User object from row
+      - Cache in Redis (TTL: 3600 seconds)
+      - Return User object
+
+   d. If not found:
+      - Return None
+
+6. RESPONSE TO CLIENT:
+   Status: 200 OK
+   Body: {
+     "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxMjMsImVtYWlsIjoidXNlckBleGFtcGxlLmNvbSIsImlhdCI6MTY5OTIzNDU2NywiZXhwIjoxNjk5MzIwOTY3fQ.signature",
+     "token_type": "bearer"
+   }
+
+ERROR RESPONSES:
+- 401 Unauthorized: Invalid email or password
+  {
+    "detail": "Invalid email or password"
+  }
+
+  Note: Same message for both invalid email and invalid password
+        (prevents user enumeration)
+
+- 403 Forbidden: Email not verified
+  {
+    "detail": "Email not verified. Please verify your email before logging in."
+  }
+
+- 503 Service Unavailable: DB service down
+  {
+    "detail": "User lookup service unavailable"
+  }
+
+CLIENT USAGE:
+After successful login, client should:
+1. Store access_token securely (httpOnly cookie or secure storage)
+2. Include token in subsequent requests:
+   Authorization: Bearer {access_token}
+3. Decode token client-side to get user_id and email (for display)
+4. Refresh token before expiration (future enhancement)
+
+
+7.3 POLL CREATION FLOW
+-----------------------
+
+SEQUENCE DIAGRAM:
+Client → Poll Service → DB Ops Service → PostgreSQL
+
+Note: Poll endpoints not shown in current codebase (main.py, auth_service),
+but database operations are implemented. This documents the expected flow.
+
+DETAILED STEPS:
+
+1. CLIENT REQUEST (hypothetical):
+   POST http://localhost:8000/polls
+   Headers:
+     Content-Type: application/json
+     Authorization: Bearer {jwt_token}
+   Body: {
+     "title": "Favorite Programming Language",
+     "description": "Vote for your favorite language",
+     "options": ["Python", "JavaScript", "Go", "Rust"],
+     "expires_at": "2024-12-31T23:59:59Z"
+   }
+
+2. POLL SERVICE (not yet implemented):
+   a. Validates JWT token:
+      - Extract token from Authorization header
+      - Verify signature and expiration
+      - Extract user_id from payload
+
+   b. Validates request (PollCreate model):
+      - title: 1-500 chars, not whitespace-only
+      - description: max 2000 chars (optional)
+      - options: 2-10 unique non-empty strings
+      - expires_at: must be future datetime (optional)
+
+   c. Sends to DB ops service:
+      POST http://db_ops:8001/db/polls/create
+      Body: {
+        "title": "...",
+        "description": "...",
+        "created_by": user_id,  # From JWT token
+        "expires_at": "2024-12-31T23:59:59Z",
+        "options": ["Python", "JavaScript", "Go", "Rust"]
+      }
+
+3. DB OPS SERVICE (hypothetical endpoint):
+   POST /db/polls/create:
+
+   a. Validates payload
+
+   b. Calls database operation:
+      poll_data = create_poll(
+          cursor=db.get_cursor(),
+          title=payload["title"],
+          description=payload["description"],
+          created_by=payload["created_by"],
+          expires_at=payload["expires_at"],
+          options=payload["options"]
+      )
+
+   c. Returns created poll with options
+
+4. DATABASE (operations.py:create_poll):
+   TRANSACTION:
+   with conn.transaction():
+       a. Insert poll:
+          INSERT INTO polls (title, description, created_by, expires_at)
+          VALUES (%s, %s, %s, %s)
+          RETURNING id, title, description, created_by, created_at, expires_at, is_active
+
+          Generated:
+          - id: UUID (gen_random_uuid())
+          - created_at: Current timestamp (NOW())
+          - is_active: Default true
+
+       b. For each option (with index as display_order):
+          INSERT INTO poll_options (poll_id, option_text, display_order)
+          VALUES (%s, %s, %s)
+          RETURNING id, poll_id, option_text, vote_count, display_order
+
+          Generated:
+          - id: UUID (gen_random_uuid())
+          - vote_count: Default 0
+
+       c. Build response dict:
+          {
+            "id": poll_id,
+            "title": "...",
+            "description": "...",
+            "created_by": user_id,
+            "created_at": "2024-11-06T12:34:56Z",
+            "expires_at": "2024-12-31T23:59:59Z",
+            "is_active": true,
+            "options": [
+              {
+                "id": option_id_1,
+                "poll_id": poll_id,
+                "option_text": "Python",
+                "vote_count": 0,
+                "display_order": 0
+              },
+              ...
+            ]
+          }
+
+       d. Commit automatically on success
+       e. Rollback automatically on exception
+
+5. RESPONSE TO CLIENT (hypothetical):
+   Status: 201 Created
+   Body: {
+     "message": "Poll created successfully",
+     "poll": {
+       "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+       "title": "Favorite Programming Language",
+       "description": "Vote for your favorite language",
+       "created_by": 123,
+       "created_at": "2024-11-06T12:34:56Z",
+       "expires_at": "2024-12-31T23:59:59Z",
+       "is_active": true,
+       "options": [
+         {
+           "id": "opt-uuid-1",
+           "poll_id": "a1b2c3d4-...",
+           "option_text": "Python",
+           "vote_count": 0,
+           "display_order": 0
+         },
+         {
+           "id": "opt-uuid-2",
+           "poll_id": "a1b2c3d4-...",
+           "option_text": "JavaScript",
+           "vote_count": 0,
+           "display_order": 1
+         },
+         {
+           "id": "opt-uuid-3",
+           "poll_id": "a1b2c3d4-...",
+           "option_text": "Go",
+           "vote_count": 0,
+           "display_order": 2
+         },
+         {
+           "id": "opt-uuid-4",
+           "poll_id": "a1b2c3d4-...",
+           "option_text": "Rust",
+           "vote_count": 0,
+           "display_order": 3
+         }
+       ],
+       "total_votes": 0
+     }
+   }
+
+DATABASE CONSTRAINTS ENFORCED:
+- created_by must reference existing user (FK constraint)
+- expires_at must be after created_at (CHECK constraint)
+- All inserts within single transaction (atomic)
+- Cascade delete: Deleting poll deletes all options
+
+
+7.4 VOTING FLOW
+----------------
+
+SEQUENCE DIAGRAM:
+Client → Poll Service → DB Ops Service → PostgreSQL
+
+DETAILED STEPS:
+
+1. CLIENT REQUEST (hypothetical):
+   POST http://localhost:8000/votes
+   Headers:
+     Content-Type: application/json
+     Authorization: Bearer {jwt_token}
+   Body: {
+     "poll_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+     "option_id": "opt-uuid-2"
+   }
+
+2. POLL SERVICE (not yet implemented):
+   a. Validates JWT token:
+      - Extract token from Authorization header
+      - Verify signature and expiration
+      - Extract user_id from payload
+
+   b. Validates request (VoteCreate model):
+      - poll_id: non-empty string
+      - option_id: non-empty string
+
+   c. Checks poll status (optional):
+      - Query poll by ID
+      - Verify is_active = true
+      - Verify not expired
+
+   d. Checks if user already voted (optional):
+      - Query existing vote for (user_id, poll_id)
+      - If exists: Return 409 CONFLICT
+
+   e. Sends to DB ops service:
+      POST http://db_ops:8001/db/votes/create
+      Body: {
+        "user_id": user_id,  # From JWT token
+        "poll_id": "a1b2c3d4-...",
+        "option_id": "opt-uuid-2"
+      }
+
+3. DB OPS SERVICE (hypothetical endpoint):
+   POST /db/votes/create:
+
+   a. Validates payload
+
+   b. Calls database operation:
+      vote_data = create_vote(
+          cursor=db.get_cursor(),
+          user_id=payload["user_id"],
+          poll_id=payload["poll_id"],
+          option_id=payload["option_id"]
+      )
+
+   c. Handles errors:
+      - psycopg.IntegrityError (duplicate vote) → 409 CONFLICT
+      - Foreign key violation (invalid poll/option) → 400 BAD_REQUEST
+
+   d. Returns created vote
+
+4. DATABASE (operations.py:create_vote):
+   ATOMIC TRANSACTION:
+   with conn.transaction():
+       a. Insert vote:
+          INSERT INTO votes (user_id, poll_id, option_id)
+          VALUES (%s, %s, %s)
+          RETURNING id, user_id, poll_id, option_id, voted_at
+
+          Generated:
+          - id: UUID (gen_random_uuid())
+          - voted_at: Current timestamp (NOW())
+
+          Constraint checked:
+          - UNIQUE(user_id, poll_id): Prevents duplicate votes
+
+       b. Increment vote count:
+          UPDATE poll_options
+          SET vote_count = vote_count + 1
+          WHERE id = %s
+
+          Atomic increment ensures no race conditions
+
+       c. Build response dict:
+          {
+            "id": vote_id,
+            "user_id": user_id,
+            "poll_id": poll_id,
+            "option_id": option_id,
+            "voted_at": "2024-11-06T12:34:56Z"
+          }
+
+       d. Commit automatically on success
+       e. Rollback both operations on exception
+          (vote insert AND count increment are atomic)
+
+5. RESPONSE TO CLIENT (hypothetical):
+   Status: 201 Created
+   Body: {
+     "message": "Vote recorded successfully",
+     "vote": {
+       "id": "vote-uuid",
+       "user_id": 123,
+       "poll_id": "a1b2c3d4-...",
+       "option_id": "opt-uuid-2",
+       "voted_at": "2024-11-06T12:34:56Z"
+     }
+   }
+
+VOTE RETRIEVAL:
+
+Get User's Vote on Poll:
+GET /polls/{poll_id}/votes/me
+Headers: Authorization: Bearer {jwt_token}
+
+Database (operations.py:get_user_vote):
+  SELECT v.id, v.user_id, v.poll_id, v.option_id, v.voted_at,
+         po.option_text, po.vote_count, po.display_order
+  FROM votes v
+  JOIN poll_options po ON v.option_id = po.id
+  WHERE v.user_id=%s AND v.poll_id=%s
+
+Response:
+  {
+    "has_voted": true,
+    "poll_id": "a1b2c3d4-...",
+    "vote": {
+      "id": "vote-uuid",
+      "user_id": 123,
+      "poll_id": "a1b2c3d4-...",
+      "option_id": "opt-uuid-2",
+      "voted_at": "2024-11-06T12:34:56Z",
+      "option_text": "JavaScript",
+      "vote_count": 42
+    }
+  }
+
+VOTE DELETION (Change Vote):
+DELETE /votes/{vote_id} or /polls/{poll_id}/votes/me
+Headers: Authorization: Bearer {jwt_token}
+
+Database (operations.py:delete_vote):
+  ATOMIC TRANSACTION:
+  with conn.transaction():
+      1. Get option_id from existing vote
+      2. DELETE FROM votes WHERE user_id=%s AND poll_id=%s
+      3. UPDATE poll_options SET vote_count = vote_count - 1 WHERE id=%s
+      4. Commit or rollback atomically
+
+After deletion, user can vote again on the same poll.
+
+ERROR RESPONSES:
+- 400 Bad Request: Invalid poll or option ID
+- 409 Conflict: User already voted on this poll
+  {
+    "detail": "You have already voted on this poll. Delete your existing vote first."
+  }
+- 404 Not Found: Poll or option doesn't exist
+
+TRANSACTION SAFETY:
+- Vote insert and count increment are atomic
+- If increment fails, vote is rolled back
+- No orphaned votes or incorrect counts
+- Concurrent votes are serialized by database
+
+================================================================================
+8. INFRASTRUCTURE COMPONENTS
+================================================================================
+
+8.1 KAFKA EVENT STREAMING (consumer_worker.py)
+-----------------------------------------------
+
+Kafka is used for asynchronous event processing. The consumer worker listens
+for events and processes them in the background.
+
+CURRENT STATUS: Implemented but not actively used for registration flow
+(registration is synchronous). Infrastructure is in place for future async
+operations.
+
+CONFIGURATION:
+- Bootstrap Servers: kafka:9092
+- Consumer Group: db_ops_group
+- Topics Subscribed:
+  * user.postgres.ops (PostgreSQL operations)
+  * user.redis.ops (Redis cache operations)
+- Auto Offset Reset: earliest
+- Auto Commit: Enabled
+
+CONSUMER ARCHITECTURE:
+
+Main Loop (consumer_loop):
+  1. Initialize DatabaseManager singleton
+  2. Retry database connection with exponential backoff
+  3. Create events and users tables if not exist
+  4. Start Kafka consumer
+  5. For each message:
+     a. Parse JSON payload
+     b. Route to appropriate handler based on topic
+     c. Handle errors and continue processing
+  6. On shutdown: Stop consumer gracefully
+
+MESSAGE ROUTING:
+- Messages with meta.target="redis" → handle_redis_event()
+- Messages with meta.topic=REDIS_TOPIC → handle_redis_event()
+- All other messages → handle_postgres_event()
+
+MESSAGE FORMAT:
+{
+  "event": "create" | "verify" | "user.registered" | "user.verified",
+  "resource": "user",
+  "payload": {
+    "email": "user@example.com",
+    "password_hash": "$argon2id$...",
+    "verification_token": "token-here",
+    "user_id": 123,  # For updates
+    "is_verified": false
+  },
+  "meta": {
+    "topic": "user.postgres.ops",
+    "target": "postgres" | "redis"
+  }
+}
+
+POSTGRES EVENT HANDLER:
+  Events: "create", "user.registered", "verify", "user.verified"
+
+  1. Log event to events table (audit log):
+     INSERT INTO events (topic, event_type, payload)
+     VALUES ('user.postgres.ops', 'create', '{"event": "create", ...}')
+
+  2. For "create" events:
+     - Extract email, password_hash, verification_token
+     - INSERT INTO users (email, password_hash, is_verified, verification_token)
+       VALUES (%s, %s, false, %s) RETURNING id
+     - Handle IntegrityError (duplicate email) gracefully
+     - Log created user ID
+
+  3. For "verify" events:
+     - Extract verification_token
+     - UPDATE users SET is_verified = true WHERE verification_token = %s
+     - Log if token not found
+
+REDIS EVENT HANDLER:
+  Events: "create", "user.registered", "verify", "user.verified"
+
+  1. For "create" events:
+     - Extract user data
+     - Cache in Redis:
+       key = f"user:email:{email}"
+       value = JSON({user_id, email, password_hash, is_verified, ...})
+       TTL = 3600 seconds
+     - Log cached key
+
+  2. For "verify" events:
+     - Extract email
+     - Update cached data:
+       * Fetch existing cache
+       * Parse JSON
+       * Set is_verified = true
+       * Re-cache with same TTL
+     - Or delete cache if parse fails (forces refresh)
+
+ERROR HANDLING:
+- Database connection failures: Retry with backoff
+- Message parsing errors: Log and continue
+- Event processing errors: Log exception and continue
+- Redis failures: Log warning but don't break flow
+
+AUDIT TABLE (events):
+Every Kafka message is logged to events table for debugging and audit:
+  CREATE TABLE events (
+      id SERIAL PRIMARY KEY,
+      topic VARCHAR(255),
+      event_type VARCHAR(255),
+      payload JSONB,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  );
+
+IDEMPOTENCY:
+- User creation: Catches IntegrityError and logs existing user
+- User verification: UPDATE is idempotent (no error if already verified)
+- Redis caching: SET overwrites existing cache safely
+
+RUNNING THE CONSUMER:
+  python backend/db_ops_service/consumer_worker.py
+
+  Or as a separate service in Docker Compose.
+
+FUTURE ENHANCEMENTS:
+- Switch registration to async (publish event instead of sync HTTP call)
+- Add poll creation events
+- Add vote events
+- Add email sending events (integration with Twilio)
+- Add dead letter queue for failed events
+
+
+8.2 DOCKER CONTAINERIZATION
+----------------------------
+
+The backend services are containerized using Docker for easy deployment and
+scaling.
+
+DOCKERFILE STRUCTURE:
+
+Main Backend (backend/Dockerfile):
+  FROM python:3.11-slim
+  WORKDIR /app
+  COPY requirements.txt .
+  RUN pip install --no-cache-dir -r requirements.txt
+  COPY . .
+  EXPOSE 8000
+  CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+Auth Service (backend/auth_service/Dockerfile):
+  Similar structure, runs auth_service/main.py
+  Exposes port 8000
+
+DB Ops Service (backend/db_ops_service/Dockerfile):
+  Similar structure, runs db_ops_service/main.py
+  Exposes port 8001
+  Additional: wait_for_services.sh script for startup coordination
+
+WAIT FOR SERVICES SCRIPT (wait_for_services.sh):
+  #!/bin/bash
+  # Wait for PostgreSQL to be ready
+  until pg_isready -h $DB_HOST -p $DB_PORT -U $DB_USER; do
+    echo "Waiting for PostgreSQL..."
+    sleep 2
+  done
+
+  # Wait for Redis to be ready (optional)
+  if [ ! -z "$REDIS_HOST" ]; then
+    until redis-cli -h $REDIS_HOST ping; do
+      echo "Waiting for Redis..."
+      sleep 2
+    done
+  fi
+
+  # Start the service
+  exec "$@"
+
+DOCKER COMPOSE (expected structure):
+  services:
+    backend:
+      build: ./backend
+      ports:
+        - "8000:8000"
+      environment:
+        - AUTH_SERVICE_URL=http://auth-service:8000
+      depends_on:
+        - auth-service
+
+    auth-service:
+      build: ./backend/auth_service
+      environment:
+        - DB_OPS_URL=http://db_ops:8001
+        - JWT_SECRET=${JWT_SECRET}
+        - KAFKA_BOOTSTRAP=kafka:9092
+      depends_on:
+        - db_ops
+        - kafka
+
+    db_ops:
+      build: ./backend/db_ops_service
+      environment:
+        - DB_HOST=postgres
+        - DB_PORT=5432
+        - DB_USER=postgres
+        - DB_PASSWORD=${DB_PASSWORD}
+        - DB_NAME=user_info_db
+        - REDIS_HOST=redis
+        - REDIS_PORT=6379
+      depends_on:
+        - postgres
+        - redis
+
+    postgres:
+      image: postgres:15
+      environment:
+        - POSTGRES_PASSWORD=${DB_PASSWORD}
+        - POSTGRES_DB=user_info_db
+      volumes:
+        - postgres_data:/var/lib/postgresql/data
+
+    redis:
+      image: redis:7-alpine
+      volumes:
+        - redis_data:/data
+
+    kafka:
+      image: confluentinc/cp-kafka:latest
+      environment:
+        - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
+        - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092
+      depends_on:
+        - zookeeper
+
+    zookeeper:
+      image: confluentinc/cp-zookeeper:latest
+      environment:
+        - ZOOKEEPER_CLIENT_PORT=2181
+
+NETWORKING:
+- Services communicate via Docker network DNS
+- Service names resolve to container IPs
+- Internal ports (8000, 8001) exposed to network
+- External ports (8000) exposed to host
+
+VOLUMES:
+- postgres_data: Persistent database storage
+- redis_data: Persistent cache storage
+
+ENVIRONMENT VARIABLES:
+- JWT_SECRET: Secret key for JWT signing (required)
+- DB_PASSWORD: PostgreSQL password (required)
+- DB_HOST, DB_PORT, DB_USER, DB_NAME: Database connection
+- REDIS_HOST, REDIS_PORT: Redis connection
+- AUTH_SERVICE_URL, DB_OPS_URL: Service URLs
+- KAFKA_BOOTSTRAP: Kafka broker address
+
+HEALTH CHECKS:
+Each service exposes /health endpoint:
+  curl http://service:port/health
+  Response: {"status": "ok", "role": "service_name"}
+
+LOGGING:
+- Application logs: myapp.log file (inside container)
+- Container logs: docker logs <container_name>
+- Centralized logging: Could integrate with ELK stack
+
+SCALING:
+- Stateless services can scale horizontally
+- Load balancer in front of backend services
+- Shared database (PostgreSQL) and cache (Redis)
+- Kafka consumer group ensures single processing
+
+================================================================================
+9. CODE ORGANIZATION
+================================================================================
+
+DIRECTORY STRUCTURE:
+
+backend/
+├── main.py                          # Main backend service (API gateway)
+├── requirements.txt                 # Python dependencies
+├── Dockerfile                       # Container image for main service
+├── myapp.log                        # Application log file
+│
+├── auth_service/                    # Authentication microservice
+│   ├── main.py                      # Auth service API endpoints
+│   ├── Dockerfile                   # Container image for auth service
+│   ├── wait_for_services.sh         # Startup coordination script
+│   └── auth/                        # Auth-specific logic
+│       ├── jwt_handler.py           # JWT token generation/verification
+│       └── password_utils.py        # Password hashing/validation
+│
+├── db_ops_service/                  # Database operations microservice
+│   ├── main.py                      # DB ops service API endpoints
+│   ├── consumer_worker.py           # Kafka consumer for async events
+│   ├── Dockerfile                   # Container image for db ops service
+│   └── database/                    # Database-specific logic
+│       ├── connection.py            # DatabaseManager singleton
+│       └── operations.py            # CRUD operations for all models
+│
+└── models/                          # Shared data models
+    ├── __init__.py                  # Package initialization
+    ├── setup.py                     # Model setup/registration
+    ├── User.py                      # User model class
+    ├── Poll.py                      # Poll model class
+    ├── Vote.py                      # Vote model class
+    ├── auth_models.py               # Pydantic models for auth endpoints
+    ├── poll_models.py               # Pydantic models for poll endpoints
+    └── vote_models.py               # Pydantic models for vote endpoints
+
+MODULE PURPOSES:
+
+main.py:
+  - API gateway for client requests
+  - Proxies to specialized services
+  - CORS configuration
+  - Basic health check
+
+auth_service/main.py:
+  - User registration endpoint
+  - User login endpoint
+  - Internal password hashing endpoints
+  - Kafka producer setup (not currently used)
+
+auth_service/auth/jwt_handler.py:
+  - JWT token generation
+  - JWT token verification
+  - Token expiration handling
+  - User info extraction from tokens
+
+auth_service/auth/password_utils.py:
+  - Argon2 password hashing
+  - Password verification
+  - Password strength validation (entropy-based)
+  - Entropy calculation
+
+db_ops_service/main.py:
+  - User CRUD endpoints
+  - Database connection management
+  - FastAPI dependency injection
+  - Error handling and logging
+
+db_ops_service/consumer_worker.py:
+  - Kafka message consumption
+  - Event routing (Postgres vs Redis)
+  - Async database operations
+  - Event audit logging
+
+db_ops_service/database/connection.py:
+  - DatabaseManager singleton
+  - PostgreSQL connection pooling
+  - Redis client initialization
+  - Table creation and initialization
+  - Retry logic with exponential backoff
+
+db_ops_service/database/operations.py:
+  - User operations: create, get_by_id, get_by_email, verify, update_password
+  - Poll operations: create, get_by_id, get_active, get_user_polls, update_status
+  - Vote operations: create, get_user_vote, get_poll_votes, delete
+  - Helper operations: increment/decrement vote counts
+  - Transaction management for atomic operations
+
+models/User.py:
+  - User class definition
+  - Factory methods for object creation
+  - Data conversion methods
+  - Status check methods
+
+models/Poll.py:
+  - Poll class definition
+  - Factory methods for object creation
+  - Status checks (expired, can_vote)
+  - State management (activate, deactivate)
+  - Timezone handling for datetime fields
+
+models/Vote.py:
+  - Vote class definition
+  - Factory methods for object creation
+  - Validation methods
+  - Timezone handling for datetime fields
+
+models/auth_models.py:
+  - Pydantic request models: UserRegistrationRequest, UserLoginRequest
+  - Pydantic response models: UserResponse, TokenResponse, RegistrationSuccessResponse
+  - Validation models: VerificationTokenRequest, UpdatePasswordRequest
+
+models/poll_models.py:
+  - Pydantic request models: PollCreate, VoteRequest, UpdatePollStatusRequest
+  - Pydantic response models: PollResponse, PollOption, VoteResponse
+  - Validation: Title/option length, uniqueness, expiration
+  - Helper classes: PollWithOptions
+
+models/vote_models.py:
+  - Pydantic request models: VoteCreate, VoteUpdate
+  - Pydantic response models: VoteResponse, VoteConfirmation, UserVoteStatus
+  - Validation: ID non-empty
+  - Helper classes: VoteWithDetails
+
+IMPORT DEPENDENCIES:
+
+main.py → auth_service (HTTP)
+auth_service → db_ops_service (HTTP)
+auth_service → models.User, models.auth_models, auth.jwt_handler, auth.password_utils
+db_ops_service → models.User, models.auth_models, database.connection, database.operations
+consumer_worker → database.connection, database.operations, models.User
+database.operations → models.User
+database.connection → psycopg, redis
+
+SHARED CODE:
+- models/ directory is shared across all services
+- Each service imports what it needs
+- No circular dependencies
+- Clear separation of concerns
+
+LOGGING STRATEGY:
+- All services log to myapp.log file
+- Log level: INFO
+- Logs include:
+  * Service startup/shutdown
+  * HTTP requests and responses
+  * Database operations
+  * Authentication events
+  * Kafka events
+  * Errors and exceptions
+
+CONFIGURATION:
+- Environment variables for all config
+- No hardcoded secrets
+- Fallback defaults for development
+- Production requires explicit configuration
+
+================================================================================
+10. KEY DESIGN PATTERNS
+================================================================================
+
+MICROSERVICES ARCHITECTURE:
+- Single Responsibility: Each service has one job
+- Service Independence: Services can be deployed/scaled independently
+- API Gateway: Main backend proxies to services
+- Database per Service: Each service owns its data (future enhancement)
+
+SINGLETON PATTERN (DatabaseManager):
+- Single instance per process
+- Global access point via __new__()
+- Shared connection across requests
+- Lazy initialization
+
+DEPENDENCY INJECTION (FastAPI):
+- get_database() dependency provides DatabaseManager
+- Validates connection before handling requests
+- Clean separation of concerns
+- Easy testing and mocking
+
+FACTORY PATTERN (Model Creation):
+- from_dict(): Create from dictionary data
+- from_db_row(): Create from database query result
+- from_*_request(): Create from API request
+- Centralized object creation logic
+
+REPOSITORY PATTERN (database/operations.py):
+- Centralized data access logic
+- Abstracts database queries
+- Easy to test and mock
+- Single source of truth for queries
+
+TRANSACTION SCRIPT PATTERN:
+- Each operation is a transaction
+- Atomic operations using context managers
+- ACID compliance
+- Automatic rollback on error
+
+PROXY PATTERN (main.py):
+- Main backend proxies requests to services
+- Client doesn't know about internal services
+- Easy to add authentication/logging/rate limiting
+- Single entry point
+
+API GATEWAY PATTERN:
+- main.py acts as API gateway
+- Routes requests to appropriate services
+- Could add request aggregation (future)
+- Could add circuit breaker (future)
+
+EVENT-DRIVEN ARCHITECTURE (Kafka):
+- Services publish events to Kafka
+- Consumers process events asynchronously
+- Decoupled services
+- Scalable event processing
+- Currently implemented but not actively used
+
+CACHE-ASIDE PATTERN (Redis):
+- Check cache first
+- On miss: Query database, then cache
+- On update: Invalidate cache
+- Application manages cache
+- Resilient to cache failures
+
+RESULT PATTERN (Error Handling):
+- HTTPException for client errors (4xx)
+- Specific status codes for different errors
+- Consistent error response format
+- Logging all errors with context
+
+DTO PATTERN (Pydantic Models):
+- Data Transfer Objects for API contracts
+- Automatic validation
+- Type safety
+- Documentation generation
+- Easy serialization/deserialization
+
+FACADE PATTERN (Service APIs):
+- Simple API hiding complex operations
+- Each service provides clean interface
+- Internal complexity hidden
+- Easy to use and understand
+
+STRATEGY PATTERN (Password Hashing):
+- Argon2 algorithm encapsulated
+- Easy to switch algorithms (future)
+- Centralized security logic
+- Consistent across services
+
+OBSERVER PATTERN (Kafka Consumer):
+- Consumer observes Kafka topics
+- Reacts to events asynchronously
+- Decoupled from producers
+- Multiple consumers per topic (future)
+
+CLEAN ARCHITECTURE PRINCIPLES:
+- Business logic separated from infrastructure
+- Models don't depend on FastAPI/Pydantic
+- Database operations abstracted
+- Easy to test and change
+
+================================================================================
+END OF DOCUMENTATION
+================================================================================
+
+This comprehensive documentation covers the entire E-Vote backend architecture,
+including services, data models, database schema, authentication, API flows,
+infrastructure, code organization, and design patterns.
+
+For questions or clarifications, refer to the inline code comments or contact
+the development team.
+
+Generated: 2024-11-06
+Version: 1.0
