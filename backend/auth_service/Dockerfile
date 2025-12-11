@@ -19,4 +19,4 @@ RUN pip install --no-cache-dir ./models
 EXPOSE 8000
 
 # Run the auth FastAPI app (module path matches backend/auth_service/main.py)
-CMD [\"uvicorn\", \"auth_service.main:app\", \"--host\", \"0.0.0.0\", \"--port\", \"8000\"]
+CMD ["uvicorn", "auth_service.main:app", "--host", "0.0.0.0", "--port", "8000"]
