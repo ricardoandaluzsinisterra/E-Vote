@@ -4,6 +4,14 @@
   justify-content: center;
   align-items: center;
   min-height: 100vh;
+  width: 100%;
+}
+
+/* Landing page gets full width */
+#root:has(.landing-page) {
+  display: block;
+  align-items: unset;
+  justify-content: unset;
 }
 
 /* thin helper card class retained for legacy use */

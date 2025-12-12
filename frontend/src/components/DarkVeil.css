@@ -1,0 +1,68 @@
+/* Canvas sits above the page background but below content */
+.darkveil-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  position: absolute;
+  inset: 0;
+  z-index: -2; /* force behind content but above landing-page ::before */
+  pointer-events: none;
+  mix-blend-mode: normal;
+  opacity: 0.95;
+}
+ 
+/* Wrapper holds the page content above the canvas */
+.darkveil-wrapper {
+  position: relative;
+  overflow: hidden;
+  z-index: 3; /* ensure content is well above the canvas */
+}
+.darkveil-wrapper > * {
+  position: relative;
+  z-index: 3;
+}
+
+/* tint overlay sits above the canvas and below page content to enforce theme color */
+.darkveil-tint {
+  position: absolute;
+  inset: 0;
+  z-index: -1; /* above canvas (-2) and below content (3) */
+  pointer-events: none;
+  mix-blend-mode: overlay;
+  opacity: 0.9;
+}
+
+/* dark mode: blue tint using screen to brighten */
+@media (prefers-color-scheme: dark) {
+  .darkveil-tint {
+    mix-blend-mode: screen;
+    opacity: 0.9;
+  }
+}
+
+/* light mode: force the hue toward orange so canvas green doesn't dominate */
+@media (prefers-color-scheme: light) {
+  .darkveil-tint {
+    /* stronger color application for light mode */
+    mix-blend-mode: color;
+    opacity: 0.85;
+    background: rgba(255, 140, 40, 0.6) !important;
+  }
+}
+
+/* Theme-specific tweaks */
+@media (prefers-color-scheme: dark) {
+  /* canvas blend slightly to feel like a veil on dark backgrounds */
+  .darkveil-canvas {
+    mix-blend-mode: screen;
+    opacity: 0.9;
+  }
+}
+
+@media (prefers-color-scheme: light) {
+  /* lighter veil on white: subtle multiply/overlay to show orange */
+  .darkveil-canvas {
+    mix-blend-mode: overlay;
+    opacity: 0.85;
+  }
+}
