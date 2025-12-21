@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { getPollResults } from "../services/pollService";
 import type { PollResults as PollResultsType } from "../types/poll.types";
+import Navbar from "../components/Navbar";
 
 function PollResults() {
   const { pollId } = useParams<{ pollId: string }>();
@@ -51,49 +52,55 @@ function PollResults() {
 
   if (isLoading) {
     return (
-      <main className="app-container">
-        <section className="auth-card">
-          <div
-            style={{
-              textAlign: "center",
-              padding: "3rem 0",
-              color: "var(--text-muted)",
-            }}
-          >
-            <p>Loading results...</p>
-          </div>
-        </section>
-      </main>
+      <>
+        <Navbar />
+        <main className="app-container">
+          <section className="auth-card">
+            <div
+              style={{
+                textAlign: "center",
+                padding: "3rem 0",
+                color: "var(--text-muted)",
+              }}
+            >
+              <p>Loading results...</p>
+            </div>
+          </section>
+        </main>
+      </>
     );
   }
 
   if (error || !results) {
     return (
-      <main className="app-container">
-        <section className="auth-card">
-          {error && (
-            <div role="alert" aria-live="assertive" className="error">
-              {error}
+      <>
+        <Navbar />
+        <main className="app-container">
+          <section className="auth-card">
+            {error && (
+              <div role="alert" aria-live="assertive" className="error">
+                {error}
+              </div>
+            )}
+            <div style={{ display: "flex", gap: "1rem", marginTop: "1rem" }}>
+              <Link
+                to={`/polls/${pollId}`}
+                className="btn"
+                style={{ flex: 1, textDecoration: "none", textAlign: "center" }}
+              >
+                Back to Poll
+              </Link>
+              <Link
+                to="/polls"
+                className="btn"
+                style={{ flex: 1, textDecoration: "none", textAlign: "center" }}
+              >
+                All Polls
+              </Link>
             </div>
-          )}
-          <div style={{ display: "flex", gap: "1rem", marginTop: "1rem" }}>
-            <Link
-              to={`/polls/${pollId}`}
-              className="btn"
-              style={{ flex: 1, textDecoration: "none", textAlign: "center" }}
-            >
-              Back to Poll
-            </Link>
-            <Link
-              to="/polls"
-              className="btn"
-              style={{ flex: 1, textDecoration: "none", textAlign: "center" }}
-            >
-              All Polls
-            </Link>
-          </div>
-        </section>
-      </main>
+          </section>
+        </main>
+      </>
     );
   }
 
@@ -106,7 +113,9 @@ function PollResults() {
   const maxVotes = sortedOptions.length > 0 ? sortedOptions[0].vote_count : 0;
 
   return (
-    <main className="app-container">
+    <>
+      <Navbar />
+      <main className="app-container">
       <section className="auth-card" style={{ maxWidth: "800px" }}>
         <div style={{ marginBottom: "1.5rem" }}>
           <div
@@ -341,6 +350,7 @@ function PollResults() {
         </div>
       </section>
     </main>
+    </>
   );
 }
 

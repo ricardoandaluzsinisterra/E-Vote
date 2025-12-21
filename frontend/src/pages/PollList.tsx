@@ -3,6 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { getActivePolls } from "../services/pollService";
 import type { Poll } from "../types/poll.types";
+import Navbar from "../components/Navbar";
 
 function PollList() {
   const { isAuthenticated, user } = useAuth();
@@ -61,24 +62,23 @@ function PollList() {
   }
 
   return (
-    <main className="app-container">
-      <section className="auth-card" style={{ maxWidth: "900px" }}>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: "1.5rem",
-          }}
-        >
-          <div>
-            <h1 className="auth-header">Active Polls</h1>
-            <p className="muted">Signed in as {user.email}</p>
+    <>
+      <Navbar />
+      <main className="app-container">
+        <section className="auth-card" style={{ maxWidth: "900px" }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: "1.5rem",
+            }}
+          >
+            <div>
+              <h1 className="auth-header">Active Polls</h1>
+              <p className="muted">Browse and vote on polls</p>
+            </div>
           </div>
-          <Link to="/" className="btn" style={{ textDecoration: "none" }}>
-            Home
-          </Link>
-        </div>
 
         {error && (
           <div role="alert" aria-live="assertive" className="error">
@@ -101,10 +101,33 @@ function PollList() {
             style={{
               textAlign: "center",
               padding: "3rem 0",
-              color: "var(--text-muted)",
             }}
           >
-            <p>No active polls available at the moment.</p>
+            <div
+              style={{
+                fontSize: "3rem",
+                marginBottom: "1rem",
+              }}
+            >
+              🗳️
+            </div>
+            <p
+              style={{
+                color: "var(--text-muted)",
+                fontSize: "1.1rem",
+                marginBottom: "1rem",
+              }}
+            >
+              No active polls available at the moment
+            </p>
+            <p
+              style={{
+                color: "var(--text-muted)",
+                fontSize: "0.9rem",
+              }}
+            >
+              Check back later for new polls to vote on!
+            </p>
           </div>
         ) : (
           <div
@@ -211,6 +234,7 @@ function PollList() {
         )}
       </section>
     </main>
+    </>
   );
 }
 

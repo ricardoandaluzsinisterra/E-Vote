@@ -1,5 +1,7 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
+import Navbar from "../components/Navbar";
 
 function Home() {
   const { user, isAuthenticated, logout } = useAuth();
@@ -99,80 +101,218 @@ function Home() {
     );
   }
 
-  // Logged in view with email upload functionality
+  // Logged in view with voting navigation
   return (
-    <main className="app-container">
-      <section className="auth-card">
-        <h1 className="auth-header">Upload Voter Emails</h1>
-        <p className="muted">Signed in as {user.email}</p>
+    <>
+      <Navbar />
+      <main className="app-container">
+        <section className="auth-card" style={{ maxWidth: "900px" }}>
+          <h1 className="auth-header">Welcome to E‑Vote</h1>
+          <p className="muted">Secure, auditable online voting</p>
 
-        <div style={{ marginTop: "1.5rem" }}>
-          <div className="form-field">
-            <label htmlFor="csv-upload">Email List (CSV Format)</label>
-            <input
-              id="csv-upload"
-              type="file"
-              accept=".csv"
-              onChange={handleFileChange}
+          {/* Voting Features */}
+          <div style={{ marginTop: "2rem" }}>
+            <h2
               style={{
-                padding: "0.75rem",
-                border: "1px solid rgba(11, 37, 64, 0.08)",
-                borderRadius: "8px",
+                fontSize: "1.1rem",
+                fontWeight: "600",
+                marginBottom: "1rem",
+                color: "var(--text)",
               }}
-            />
+            >
+              Voting
+            </h2>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+                gap: "1rem",
+              }}
+            >
+              <Link
+                to="/polls"
+                style={{
+                  textDecoration: "none",
+                  padding: "1.5rem",
+                  border: "1px solid rgba(11, 37, 64, 0.08)",
+                  borderRadius: "12px",
+                  background: "#fff",
+                  transition: "all 0.2s",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.5rem",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.boxShadow =
+                    "0 4px 12px rgba(11, 37, 64, 0.08)";
+                  e.currentTarget.style.transform = "translateY(-2px)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.boxShadow = "none";
+                  e.currentTarget.style.transform = "translateY(0)";
+                }}
+              >
+                <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>
+                  🗳️
+                </div>
+                <h3
+                  style={{
+                    margin: 0,
+                    fontSize: "1.1rem",
+                    color: "var(--primary)",
+                    fontWeight: "600",
+                  }}
+                >
+                  View Active Polls
+                </h3>
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: "0.9rem",
+                    color: "var(--text-muted)",
+                    lineHeight: "1.4",
+                  }}
+                >
+                  Browse and vote on active polls
+                </p>
+              </Link>
+
+              <Link
+                to="/voting-history"
+                style={{
+                  textDecoration: "none",
+                  padding: "1.5rem",
+                  border: "1px solid rgba(11, 37, 64, 0.08)",
+                  borderRadius: "12px",
+                  background: "#fff",
+                  transition: "all 0.2s",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.5rem",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.boxShadow =
+                    "0 4px 12px rgba(11, 37, 64, 0.08)";
+                  e.currentTarget.style.transform = "translateY(-2px)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.boxShadow = "none";
+                  e.currentTarget.style.transform = "translateY(0)";
+                }}
+              >
+                <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>
+                  📊
+                </div>
+                <h3
+                  style={{
+                    margin: 0,
+                    fontSize: "1.1rem",
+                    color: "var(--primary)",
+                    fontWeight: "600",
+                  }}
+                >
+                  My Voting History
+                </h3>
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: "0.9rem",
+                    color: "var(--text-muted)",
+                    lineHeight: "1.4",
+                  }}
+                >
+                  View your past votes and participation
+                </p>
+              </Link>
+            </div>
           </div>
 
-          <button
-            className="btn primary"
-            onClick={handleUpload}
-            disabled={!selectedFile || isProcessing}
-            style={{
-              marginTop: "1rem",
-              width: "100%",
-              opacity: !selectedFile || isProcessing ? 0.6 : 1,
-            }}
-          >
-            {isProcessing ? "Processing..." : "Upload Emails File"}
-          </button>
-
-          {uploadStatus && (
-            <p
-              className={uploadStatus.includes("Error") ? "error" : "muted"}
-              style={{ marginTop: "0.75rem", fontSize: "0.9rem" }}
-            >
-              {uploadStatus}
-            </p>
-          )}
-
-          {isUploaded && (
-            <button
-              className="btn primary"
-              onClick={handleSendVerifications}
-              disabled={isProcessing}
+          {/* Admin Features */}
+          <div style={{ marginTop: "3rem" }}>
+            <h2
               style={{
-                marginTop: "1rem",
-                width: "100%",
-                background: "linear-gradient(180deg, var(--accent), #e67030)",
+                fontSize: "1.1rem",
+                fontWeight: "600",
+                marginBottom: "1rem",
+                color: "var(--text)",
               }}
             >
-              Send Verification Emails
-            </button>
-          )}
+              Administration
+            </h2>
+            <div
+              style={{
+                padding: "1.5rem",
+                border: "1px solid rgba(11, 37, 64, 0.08)",
+                borderRadius: "12px",
+                background: "#fff",
+              }}
+            >
+              <h3
+                style={{
+                  margin: "0 0 1rem 0",
+                  fontSize: "1rem",
+                  fontWeight: "600",
+                }}
+              >
+                Upload Voter Emails
+              </h3>
 
-          <button
-            className="btn"
-            onClick={logout}
-            style={{
-              marginTop: "1.5rem",
-              width: "100%",
-              background: "rgba(11, 37, 64, 0.05)",
-            }}
-          >
-            Logout
-          </button>
-        </div>
-      </section>
-    </main>
+              <div className="form-field">
+                <label htmlFor="csv-upload">Email List (CSV Format)</label>
+                <input
+                  id="csv-upload"
+                  type="file"
+                  accept=".csv"
+                  onChange={handleFileChange}
+                  style={{
+                    padding: "0.75rem",
+                    border: "1px solid rgba(11, 37, 64, 0.08)",
+                    borderRadius: "8px",
+                  }}
+                />
+              </div>
+
+              <button
+                className="btn primary"
+                onClick={handleUpload}
+                disabled={!selectedFile || isProcessing}
+                style={{
+                  marginTop: "1rem",
+                  width: "100%",
+                  opacity: !selectedFile || isProcessing ? 0.6 : 1,
+                }}
+              >
+                {isProcessing ? "Processing..." : "Upload Emails File"}
+              </button>
+
+              {uploadStatus && (
+                <p
+                  className={uploadStatus.includes("Error") ? "error" : "muted"}
+                  style={{ marginTop: "0.75rem", fontSize: "0.9rem" }}
+                >
+                  {uploadStatus}
+                </p>
+              )}
+
+              {isUploaded && (
+                <button
+                  className="btn primary"
+                  onClick={handleSendVerifications}
+                  disabled={isProcessing}
+                  style={{
+                    marginTop: "1rem",
+                    width: "100%",
+                    background: "linear-gradient(180deg, var(--accent), #e67030)",
+                  }}
+                >
+                  Send Verification Emails
+                </button>
+              )}
+            </div>
+          </div>
+        </section>
+      </main>
+    </>
   );
 }
 

@@ -3,6 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { getActivePolls, getUserVote } from "../services/pollService";
 import type { Poll, UserVote } from "../types/poll.types";
+import Navbar from "../components/Navbar";
 
 interface VoteHistoryItem {
   poll: Poll;
@@ -115,24 +116,18 @@ function VotingHistory() {
   }
 
   return (
-    <main className="app-container">
-      <section className="auth-card" style={{ maxWidth: "900px" }}>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: "1.5rem",
-          }}
-        >
-          <div>
+    <>
+      <Navbar />
+      <main className="app-container">
+        <section className="auth-card" style={{ maxWidth: "900px" }}>
+          <div
+            style={{
+              marginBottom: "1.5rem",
+            }}
+          >
             <h1 className="auth-header">Voting History</h1>
             <p className="muted">Your participation in polls</p>
           </div>
-          <Link to="/polls" className="btn" style={{ textDecoration: "none" }}>
-            All Polls
-          </Link>
-        </div>
 
         {error && (
           <div role="alert" aria-live="assertive" className="error">
@@ -356,6 +351,7 @@ function VotingHistory() {
         )}
       </section>
     </main>
+    </>
   );
 }
 

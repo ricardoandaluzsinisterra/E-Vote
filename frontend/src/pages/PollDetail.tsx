@@ -7,6 +7,7 @@ import {
   getUserVote,
 } from "../services/pollService";
 import type { Poll, UserVote } from "../types/poll.types";
+import Navbar from "../components/Navbar";
 
 function PollDetail() {
   const { pollId } = useParams<{ pollId: string }>();
@@ -129,38 +130,44 @@ function PollDetail() {
 
   if (isLoading) {
     return (
-      <main className="app-container">
-        <section className="auth-card">
-          <div
-            style={{
-              textAlign: "center",
-              padding: "3rem 0",
-              color: "var(--text-muted)",
-            }}
-          >
-            <p>Loading poll...</p>
-          </div>
-        </section>
-      </main>
+      <>
+        <Navbar />
+        <main className="app-container">
+          <section className="auth-card">
+            <div
+              style={{
+                textAlign: "center",
+                padding: "3rem 0",
+                color: "var(--text-muted)",
+              }}
+            >
+              <p>Loading poll...</p>
+            </div>
+          </section>
+        </main>
+      </>
     );
   }
 
   if (error && !poll) {
     return (
-      <main className="app-container">
-        <section className="auth-card">
-          <div role="alert" aria-live="assertive" className="error">
-            {error}
-          </div>
-          <Link
-            to="/polls"
-            className="btn"
-            style={{ marginTop: "1rem", textDecoration: "none", display: "block", textAlign: "center" }}
-          >
-            Back to Polls
-          </Link>
-        </section>
-      </main>
+      <>
+        <Navbar />
+        <main className="app-container">
+          <section className="auth-card">
+            <div role="alert" aria-live="assertive" className="error">
+              {error}
+            </div>
+            <Link
+              to="/polls"
+              className="btn"
+              style={{ marginTop: "1rem", textDecoration: "none", display: "block", textAlign: "center" }}
+            >
+              Back to Polls
+            </Link>
+          </section>
+        </main>
+      </>
     );
   }
 
@@ -172,7 +179,9 @@ function PollDetail() {
   const hasVoted = !!userVote;
 
   return (
-    <main className="app-container">
+    <>
+      <Navbar />
+      <main className="app-container">
       <section className="auth-card" style={{ maxWidth: "700px" }}>
         <div style={{ marginBottom: "1.5rem" }}>
           <Link
@@ -374,6 +383,7 @@ function PollDetail() {
         </form>
       </section>
     </main>
+    </>
   );
 }
 
