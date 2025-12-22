@@ -224,3 +224,56 @@ INFO:auth_service.main:Registration email sent to hafsamoin65@gmail.com
 INFO:auth_service.main:Voter upload complete: 2 uploaded, 0 failed
 INFO:db_ops_service.main:Voter account created: hafsamoin12@yahoo.com
 INFO:auth_service.main:Voter registered successfully: hafsamoin12@yahoo.com
+INFO:database.connection:Database connection successful to postgres:5432
+INFO:database.connection:Redis connection successful to redis:6379 db=0
+INFO:__main__:Connected to Postgres/Redis via DatabaseManager
+INFO:__main__:Ensured events table exists
+INFO:__main__:Ensured users table exists
+INFO:aiokafka.consumer.subscription_state:Updating subscribed topics to: frozenset({'user.redis.ops', 'user.postgres.ops'})
+INFO:db_ops_service.database.connection:Database connection successful to postgres:5432
+INFO:db_ops_service.database.connection:Redis connection successful to redis:6379 db=0
+WARNING:aiokafka.cluster:Topic user.redis.ops is not available during auto-create initialization
+WARNING:aiokafka.cluster:Topic user.postgres.ops is not available during auto-create initialization
+WARNING:aiokafka.cluster:Topic user.redis.ops is not available during auto-create initialization
+WARNING:aiokafka.cluster:Topic user.postgres.ops is not available during auto-create initialization
+ERROR:aiokafka.consumer.group_coordinator:Group Coordinator Request failed: [Error 15] CoordinatorNotAvailableError
+ERROR:aiokafka.consumer.group_coordinator:Group Coordinator Request failed: [Error 15] CoordinatorNotAvailableError
+ERROR:aiokafka.consumer.group_coordinator:Group Coordinator Request failed: [Error 15] CoordinatorNotAvailableError
+ERROR:aiokafka.consumer.group_coordinator:Group Coordinator Request failed: [Error 15] CoordinatorNotAvailableError
+ERROR:aiokafka.consumer.group_coordinator:Group Coordinator Request failed: [Error 15] CoordinatorNotAvailableError
+ERROR:aiokafka.consumer.group_coordinator:Group Coordinator Request failed: [Error 15] CoordinatorNotAvailableError
+ERROR:aiokafka.consumer.group_coordinator:Group Coordinator Request failed: [Error 15] CoordinatorNotAvailableError
+ERROR:aiokafka.consumer.group_coordinator:Group Coordinator Request failed: [Error 15] CoordinatorNotAvailableError
+INFO:aiokafka.consumer.group_coordinator:Discovered coordinator 1 for group db_ops_group
+INFO:aiokafka.consumer.group_coordinator:Revoking previously assigned partitions set() for group db_ops_group
+INFO:aiokafka.consumer.group_coordinator:(Re-)joining group db_ops_group
+INFO:aiokafka.consumer.group_coordinator:Joined group 'db_ops_group' (generation 1) with member_id aiokafka-0.8.0-72b20319-e942-4dfc-b32d-831e4b52e3e8
+INFO:aiokafka.consumer.group_coordinator:Elected group leader -- performing partition assignments using roundrobin
+INFO:aiokafka.consumer.group_coordinator:Successfully synced group db_ops_group with generation 1
+INFO:aiokafka.consumer.group_coordinator:Setting newly assigned partitions {TopicPartition(topic='user.postgres.ops', partition=0), TopicPartition(topic='user.redis.ops', partition=0)} for group db_ops_group
+INFO:__main__:Kafka consumer started (bootstrap=kafka:9092, topics=['user.postgres.ops', 'user.redis.ops'], group=db_ops_group)
+INFO:db_ops_service.database.connection:Database connection successful to postgres:5432
+INFO:db_ops_service.database.connection:Redis connection successful to redis:6379 db=0
+INFO:db_ops_service.database.connection:Database connection successful to postgres:5432
+INFO:db_ops_service.database.connection:Redis connection successful to redis:6379 db=0
+INFO:db_ops_service.database.connection:Database connection successful to postgres:5432
+INFO:db_ops_service.database.connection:Redis connection successful to redis:6379 db=0
+INFO:auth_service.main:Kafka producer started (bootstrap=kafka:9092)
+INFO:db_ops_service.main:OTP rate limit check passed for d00262961@student.dkit.ie (type=admin, remaining=2)
+INFO:db_ops_service.main:OTP stored for d00262961@student.dkit.ie (type=admin, expires in 600s)
+ERROR:auth_service.main:❌ Failed to send OTP email: (530, b'5.7.0 Authentication Required. For more information, go to\n5.7.0  https://support.google.com/accounts/troubleshooter/2402620. 71dfb90a1353d-55fe91833e5sm719070e0c.7 - gsmtp', '')
+ERROR:auth_service.main:❌ SMTP send failed: (530, b'5.7.0 Authentication Required. For more information, go to\n5.7.0  https://support.google.com/accounts/troubleshooter/2402620. 71dfb90a1353d-55fe91833e5sm719070e0c.7 - gsmtp', '')
+WARNING:auth_service.main:Failed to send OTP email for d00262961@student.dkit.ie: (530, b'5.7.0 Authentication Required. For more information, go to\n5.7.0  https://support.google.com/accounts/troubleshooter/2402620. 71dfb90a1353d-55fe91833e5sm719070e0c.7 - gsmtp', '')
+INFO:auth_service.main:OTP sent to d00262961@student.dkit.ie (type=admin)
+INFO:db_ops_service.main:OTP rate limit check passed for d00262961@student.dkit.ie (type=admin, remaining=1)
+INFO:db_ops_service.main:OTP stored for d00262961@student.dkit.ie (type=admin, expires in 600s)
+ERROR:auth_service.main:❌ Failed to send OTP email: (530, b'5.7.0 Authentication Required. For more information, go to\n5.7.0  https://support.google.com/accounts/troubleshooter/2402620. ada2fe7eead31-5e7d0e77d92sm1629807137.1 - gsmtp', '')
+ERROR:auth_service.main:❌ SMTP send failed: (530, b'5.7.0 Authentication Required. For more information, go to\n5.7.0  https://support.google.com/accounts/troubleshooter/2402620. ada2fe7eead31-5e7d0e77d92sm1629807137.1 - gsmtp', '')
+WARNING:auth_service.main:Failed to send OTP email for d00262961@student.dkit.ie: (530, b'5.7.0 Authentication Required. For more information, go to\n5.7.0  https://support.google.com/accounts/troubleshooter/2402620. ada2fe7eead31-5e7d0e77d92sm1629807137.1 - gsmtp', '')
+INFO:auth_service.main:OTP sent to d00262961@student.dkit.ie (type=admin)
+INFO:db_ops_service.main:OTP rate limit check passed for d00262961@student.dkit.ie (type=admin, remaining=0)
+INFO:db_ops_service.main:OTP stored for d00262961@student.dkit.ie (type=admin, expires in 600s)
+ERROR:auth_service.main:❌ Failed to send OTP email: (530, b'5.7.0 Authentication Required. For more information, go to\n5.7.0  https://support.google.com/accounts/troubleshooter/2402620. a1e0cc1a2514c-93f5acacc12sm1441552241.1 - gsmtp', '')
+ERROR:auth_service.main:❌ SMTP send failed: (530, b'5.7.0 Authentication Required. For more information, go to\n5.7.0  https://support.google.com/accounts/troubleshooter/2402620. a1e0cc1a2514c-93f5acacc12sm1441552241.1 - gsmtp', '')
+WARNING:auth_service.main:Failed to send OTP email for d00262961@student.dkit.ie: (530, b'5.7.0 Authentication Required. For more information, go to\n5.7.0  https://support.google.com/accounts/troubleshooter/2402620. a1e0cc1a2514c-93f5acacc12sm1441552241.1 - gsmtp', '')
+INFO:auth_service.main:OTP sent to d00262961@student.dkit.ie (type=admin)
