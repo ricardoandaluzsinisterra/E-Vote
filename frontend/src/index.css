@@ -185,6 +185,14 @@ input:focus {
     color: var(--color-text);
   }
 
+  /* Links and accents use orange for better contrast on dark bg */
+  a {
+    color: var(--accent);
+  }
+  a:hover {
+    color: #ffd1b3;
+  }
+
   .auth-card {
     background: linear-gradient(
       180deg,
@@ -202,7 +210,384 @@ input:focus {
     border: 1px solid rgba(255, 255, 255, 0.06);
   }
 
+  /* Ensure normally muted/descriptive text is high-contrast */
+  .muted,
+  .hero-description,
+  .feature-card p,
+  .feature-item,
+  .brand-name {
+    color: rgba(234, 244, 255, 0.98) !important;
+  }
+
+  /* Ensure footer/info links use the same high-contrast muted color */
+  .auth-footer .muted,
+  .auth-footer a,
+  .auth-footer span {
+    color: rgba(234, 244, 255, 0.98) !important;
+  }
+
+  /* Additional explicit rules to override any blue defaults */
+  .feature-card,
+  .feature-card h3,
+  .feature-card p,
+  .auth-footer,
+  .auth-footer a,
+  .auth-footer span,
+  .auth-card,
+  .muted,
+  .brand-name,
+  .feature-item,
+  .hero-description {
+    color: var(--color-text) !important;
+  }
+
+  /* Make primary actions use the orange accent */
   .btn.primary {
-    box-shadow: 0 6px 24px rgba(0, 27, 183, 0.28);
+    background: linear-gradient(180deg, var(--accent), #e67030);
+    box-shadow: 0 8px 26px rgba(255, 128, 64, 0.12);
+    color: #071230;
+  }
+
+  .admin-login-btn {
+    background: linear-gradient(90deg, var(--accent), #e67030);
+    color: #071230;
+  }
+
+  .gradient-text {
+    display: block;
+    background: linear-gradient(135deg, #ffd1b3, var(--accent));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .btn.secondary {
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--color-text);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .btn.secondary:hover {
+    background: rgba(255, 255, 255, 0.06);
+  }
+}
+
+/* Landing Page Styles */
+.landing-page {
+  min-height: 100vh;
+  width: 100vw;
+  margin: 0;
+  padding: 0;
+  position: relative;
+  z-index: 0; /* establish stacking context for child layers */
+}
+
+/* Background layer for landing page so DarkVeil canvas can sit above it */
+.landing-page::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -3; /* place background behind canvas (-2) and tint (-1) */
+  background: linear-gradient(135deg, #ffffff 0%, #f8faff 100%);
+}
+@media (prefers-color-scheme: dark) {
+  .landing-page::before {
+    background: linear-gradient(135deg, var(--color-bg) 0%, #0a1120 100%);
+  }
+}
+
+.landing-nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(11, 37, 64, 0.08);
+  z-index: 100;
+}
+
+.nav-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1rem 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.brand-name {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.admin-login-btn {
+  background: var(--cerulean-600);
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  text-decoration: none;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.admin-login-btn:hover {
+  background: var(--cerulean-700);
+  transform: translateY(-1px);
+  color: white;
+}
+
+.hero-section {
+  padding: 8rem 2rem 4rem;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+}
+
+.hero-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.hero-title {
+  font-size: clamp(2.5rem, 5vw, 4rem);
+  font-weight: 800;
+  line-height: 1.1;
+  margin-bottom: 1.5rem;
+  color: var(--color-text);
+}
+
+.gradient-text {
+  display: block;
+  background: linear-gradient(135deg, var(--cerulean-600), var(--accent));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.hero-description {
+  font-size: 1.25rem;
+  line-height: 1.6;
+  color: var(--color-text);
+  margin-bottom: 2rem;
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.hero-features {
+  display: flex;
+  justify-content: center;
+  gap: 2rem;
+  margin-bottom: 3rem;
+  flex-wrap: wrap;
+}
+
+.feature-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.feature-icon {
+  font-size: 1.25rem;
+}
+
+.hero-cta {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.btn.large {
+  padding: 1rem 2rem;
+  font-size: 1.1rem;
+}
+
+.btn.secondary {
+  background: rgba(11, 37, 64, 0.05);
+  color: var(--color-text);
+  border: 1px solid rgba(11, 37, 64, 0.1);
+}
+
+.btn.secondary:hover {
+  background: rgba(11, 37, 64, 0.1);
+}
+
+.features-section {
+  padding: 4rem 2rem;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.features-container {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.section-title {
+  font-size: 2.5rem;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 3rem;
+  color: var(--color-text);
+}
+
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 2rem;
+}
+
+.feature-card {
+  background: white;
+  padding: 2rem;
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  text-align: center;
+  border: 1px solid rgba(11, 37, 64, 0.05);
+}
+
+.feature-card-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.feature-card h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  color: var(--color-text);
+}
+
+.feature-card p {
+  color: var(--color-text);
+  line-height: 1.6;
+}
+
+@media (max-width: 768px) {
+  .hero-features {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .hero-cta {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .btn.large {
+    width: 100%;
+    max-width: 280px;
+  }
+
+  .nav-container {
+    padding: 1rem;
+  }
+
+  .hero-section {
+    padding: 6rem 1rem 2rem;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .landing-page {
+    background: linear-gradient(135deg, var(--color-bg) 0%, #0a1120 100%);
+  }
+
+  .landing-nav {
+    background: rgba(4, 16, 40, 0.95);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .features-section {
+    background: rgba(7, 18, 48, 0.5);
+  }
+
+  .feature-card {
+    background: var(--color-surface);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+  }
+
+  .btn.secondary {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--color-text);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .btn.secondary:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+}
+
+/* Dark-mode explicit overrides to ensure no blue text */
+@media (prefers-color-scheme: dark) {
+  .feature-card p,
+  .feature-card h3,
+  .feature-card,
+  .auth-footer,
+  .auth-footer a,
+  .auth-footer span,
+  .auth-card,
+  .muted,
+  .brand-name,
+  .feature-item,
+  .hero-description,
+  .landing-nav,
+  .hero-section {
+    color: rgba(234, 244, 255, 0.98) !important;
+  }
+
+  /* ensure links in auth-footer readable */
+  .auth-footer a {
+    color: rgba(234, 244, 255, 0.98) !important;
+  }
+
+  /* stronger orange accents */
+  .btn.primary {
+    background: linear-gradient(180deg, var(--accent), #e67030) !important;
+    color: #071230 !important;
+  }
+}
+
+/* Dark veil background (adapted from reactbits.dev dark-veil) */
+/* Visible on all themes; lighter in light mode and stronger in dark mode */
+.landing-page.dark-veil {
+  position: relative;
+  overflow: hidden;
+}
+.landing-page.dark-veil::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  /* subtle textured veil for light theme: dark micro-dots + faint highlights */
+  background-image:
+    radial-gradient(rgba(11,37,64,0.02) 1px, transparent 1px),
+    radial-gradient(rgba(255,255,255,0.006) 1px, transparent 1px);
+  background-size: 18px 18px, 36px 36px;
+  background-position: 0 0, 9px 9px;
+  mix-blend-mode: normal;
+  opacity: 0.36;
+  pointer-events: none;
+  z-index: 0;
+}
+.landing-page.dark-veil > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Slightly stronger veil in dark mode */
+@media (prefers-color-scheme: dark) {
+  .landing-page.dark-veil::before {
+    background-image:
+      radial-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+      radial-gradient(rgba(255,255,255,0.01) 1px, transparent 1px);
+    opacity: 0.6;
+    mix-blend-mode: screen;
   }
 }

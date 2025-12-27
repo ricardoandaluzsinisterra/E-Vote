@@ -90,3 +90,39 @@ async def login_user(payload: dict):
     """
     result = proxy_post("/login", payload)
     return result
+
+@app.post("/send-otp")
+async def send_otp(payload: dict):
+    """Proxy OTP send requests to auth service."""
+    result = proxy_post("/send-otp", payload)
+    return result
+
+@app.post("/verify-otp")
+async def verify_otp(payload: dict):
+    """Proxy OTP verification requests to auth service."""
+    result = proxy_post("/verify-otp", payload)
+    return result
+
+@app.post("/admin/verify-and-activate")
+async def admin_verify_otp(payload: dict):
+    """Proxy admin OTP verification and activation"""
+    result = proxy_post("/admin/verify-and-activate", payload)
+    return result
+
+@app.post("/admin/upload-candidates")
+async def admin_upload_candidates(payload: dict):
+    """Proxy candidate upload"""
+    result = proxy_post("/admin/upload-candidates", payload)
+    return result
+
+@app.post("/admin/upload-voters")
+async def admin_upload_voters(payload: dict):
+    """Proxy voter upload"""
+    result = proxy_post("/admin/upload-voters", payload)
+    return result
+
+@app.post("/voter/register")
+async def voter_register(payload: dict):
+    """Proxy voter registration"""
+    result = proxy_post("/voter/register", payload)
+    return result
